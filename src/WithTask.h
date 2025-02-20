@@ -1,0 +1,46 @@
+#ifndef WithTask_h
+#define WithTask_h
+
+#define StartTask(Cl) ((Serial.println("Start task "#Cl)),(started ? started : (started = (xTaskCreate((TaskFunction_t)&taskWrapper<Cl>, this->taskName.c_str(), 8192, this, 1, nullptr) == pdPASS ? this : NULL))))
+
+#include "help.h"
+
+#include <WString.h>
+#include <freertos/FreeRTOS.h>
+//#include <portmacro.h>
+
+#include <type_traits>
+
+template <typename C>
+void taskWrapper(C* p) {
+  p->start();
+  vTaskDelete(NULL);
+}
+
+class WithTask {
+ private:
+  inline static int taskId = 0;
+
+public:
+  String taskName;
+  WithTask *started;
+  WithTask(const char* _name = NULL);
+  virtual ~WithTask() {}
+
+  // Pure virtual function to be implemented by derived classes
+  virtual void task() = 0;
+  virtual void start();
+};
+
+class Heartbeat : public WithTask {
+  uint32_t sleepAt;
+  uint32_t startupTime;
+
+ public:
+  Heartbeat();
+  virtual ~Heartbeat(){};
+  void task();
+  void ping(uint32_t timeout);
+  void cardiacArrest(uint32_t millis = 7500);
+};
+#endif

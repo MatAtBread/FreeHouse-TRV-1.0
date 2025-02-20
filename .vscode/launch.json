@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "type": "cppdbg",
+        "request": "launch",
+        "name": "Debug ESP32-C6",
+        "miDebuggerPath": "C:\\Users\\matthew\\AppData\\Local\\Arduino15\\packages\\esp32\\tools\\riscv32-esp-elf-gdb\\14.2_20240403\\bin\\riscv32-esp-elf-gdb.exe",
+        "program": "${workspaceFolder}\\build\\maker-1.ino.elf",
+        "cwd": "${workspaceFolder}",
+        "setupCommands": [
+          { "text": "target remote localhost:3333" },
+          { "text": "monitor reset halt" },
+          { "text": "flushregs" }
+        ],
+        "externalConsole": false,
+        "stopAtEntry": true,
+        "logging": {
+          "engineLogging": true       // Logs communication between VS Code and GDB
+        }
+      }
+    ]
+  }
