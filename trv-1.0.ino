@@ -8,9 +8,7 @@
 #include <esp_coexist.h>
 
 #include "src/WithTask.h"
-#include "src/DallasOneWire/DallasOneWire.h"
 #include "src/CaptiveWifi.h"
-#include "src/MotorController.h"
 #include "src/trv-state.h"
 
 RTC_DATA_ATTR int wakeCount = 0;
@@ -18,6 +16,9 @@ RTC_DATA_ATTR int wakeCount = 0;
 class HeartMonitor: public Heartbeat {
   public:
     HeartMonitor() {
+      // Default - do a short flash every 500ms
+      // ledcAttach(LED_BUILTIN, 2 /* Hz */, 8);
+      // ledcWrite(LED_BUILTIN, 16);
       pinMode(LED_BUILTIN, OUTPUT);
       digitalWrite(LED_BUILTIN, LOW);
     }
@@ -25,6 +26,8 @@ class HeartMonitor: public Heartbeat {
     ~HeartMonitor() {
       // In reality, this won't get called as the heartbeat only stops when we go into deep sleep
       digitalWrite(LED_BUILTIN, HIGH);
+      // ledcWrite(LED_BUILTIN, 0);
+      // ledcDetach(LED_BUILTIN);
     }
 };
 
@@ -42,6 +45,8 @@ void tryZigbee() {
   Serial.println(F("Startied zigbee"));
 }
 
+// Sample the touch ADC for up to 1050ms to see if it was touched for the whole second
+// bails returning false if it was released/not touched suring that period.
 bool touchButtonPressed() {
   bool touch = false;
   for (int i = 0; i <= 6; i++) {
@@ -68,7 +73,7 @@ void setup() {
 
   // Enter WiFi config mode on hard reset or touch
   bool touch = touchButtonPressed() || wakeCause == ESP_SLEEP_WAKEUP_UNDEFINED;
-  bool dreaming = (wakeCount & 3)==0;
+  bool dreaming = (wakeCount & 7)==0;
   Serial.printf(F("Wake cause: %d #%d, touch: %d, dreaming: %d\n"), wakeCause, wakeCount, touch, dreaming);
   Heartbeat* heartbeat = new HeartMonitor();
 
@@ -77,24 +82,28 @@ void setup() {
 
     if (touch) {
       Serial.println(F("Touch button pressed"));
+      // Note: we DON'T tryZigbee() here as ESP32-C6 can't do a WiFi AP mode and start the ZB stack at the same time
       new CaptivePortal(heartbeat, trv);
     } else if (dreaming) {
       Serial.println(F("Dreaming"));
-      tryZigbee();
-      trv->checkAutoState();
       if (trv->flatBattery()) {
         Serial.println("Battery exhausted");
         heartbeat->cardiacArrest(86400000U);
       } else {
         //ToDo
         // Process any zigbee msgs...
-        // esp_zb_zcl_update_reporting_info;
+        tryZigbee();
+        // Every 8 * 7.5 (one minute) check if the valve needs updating in auto-mode.
+        trv->checkAutoState();
+        auto state = trv->getState();
+        // and update ZB state esp_zb_zcl_update_reporting_info;
         heartbeat->ping(50);
       }
     }
   } else {
     Serial.println(F("Ping"));
     // Process any zigbee msgs...
+    tryZigbee();
     // ...and go to sleep
     heartbeat->ping(0);
   }

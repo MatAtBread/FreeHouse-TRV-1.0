@@ -2,10 +2,10 @@
 
 #include <HardwareSerial.h>
 
+#define MOTOR D7 // (and D6 on the Dev board)
 #define NSLEEP D8
 #define CHARGING D9
 #define DTEMP D10  // NYI: One wire bus for DS18B20L / MY18B20L
-#define MOTOR D7 // (and D6 on the Dev board)
 #define BATTERY A0
 
 static RTC_DATA_ATTR trv_state_t globalState;
@@ -28,6 +28,7 @@ Trv::Trv(Heartbeat* heartbeat, bool wakeUp) {
     if (globalState.systemMode < ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF || globalState.systemMode > ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT)
       globalState.systemMode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO;
 
+    Serial.println("Reset: open valve");
     // When restarting after a reset or power loss (eg new battery), force open the valve
     globalState.valve_position = 50; // We don't know what the valve position is after a reset
     motor->setValvePosition(100);
@@ -42,7 +43,7 @@ trv_state_t& Trv::getState(){
   globalState.valve_position = motor->getValvePosition();
   // We only update battery values when teh motor is off. If it's moving, it will drop due to the loading
   if (motor->getDirection() == 0) {
-    globalState.batteryRaw = battery->getRawValue();
+    globalState.batteryRaw = battery->getValue();
     globalState.batteryPercent = battery->getPercent(globalState.batteryRaw);
   }
 
@@ -54,7 +55,7 @@ bool Trv::flatBattery() {
 }
 
 void Trv::setTempCalibration(float temp) {
-  globalState.temperature = temp;
+  globalState.temperatureCalibration = temp;
   checkAutoState();
 }
 
@@ -75,6 +76,7 @@ void Trv::setSysteMode(esp_zb_zcl_thermostat_system_mode_t mode){
 
 void Trv::checkAutoState() {
   auto state = getState();
+  Serial.printf(F("checkAutoState: %f %f %d\n"), state.temperature, state.heatingSetpoint, state.systemMode);
   if (state.systemMode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO) {
     if (state.temperature > state.heatingSetpoint + 0.5) {
       motor->setValvePosition(0);

@@ -26,8 +26,8 @@ cl.printf("<input onclick='window.location.href = \"/mode-off\"' type='radio' na
 cl.println("<table>");
 cl.printf("<tr><td>syetm mode</td><td>%s</td></tr>", systemModeToString(state.systemMode));
 cl.printf("<tr><td>temperature</td><td>%f</td></tr>", state.temperature);
-cl.printf("<tr><td>battery (raw)</td><td>%d</td></tr>", state.batteryRaw);
-cl.printf("<tr><td>battery %</td><td>%d</td></tr>", state.batteryPercent);
+cl.printf("<tr><td>battery (raw)</td><td>%umV</td></tr>", state.batteryRaw);
+cl.printf("<tr><td>battery %</td><td>%d%%</td></tr>", state.batteryPercent);
 cl.printf("<tr><td>power source</td><td>%s</td></tr>", state.isCharging ? "charging" : "battery power");
 cl.printf("<tr><td>valve</td><td>%d</td></tr>", state.valve_position);
 cl.printf("<tr><td>heating setpoint</td><td>");

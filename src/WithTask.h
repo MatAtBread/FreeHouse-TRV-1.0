@@ -1,7 +1,7 @@
 #ifndef WithTask_h
 #define WithTask_h
 
-#define StartTask(Cl) ((Serial.println("Start task "#Cl)),(started ? started : (started = (xTaskCreate((TaskFunction_t)&taskWrapper<Cl>, this->taskName.c_str(), 8192, this, 1, nullptr) == pdPASS ? this : NULL))))
+#define StartTask(Cl) (started ? (Serial.println("Task "#Cl" running"), started) : (started = (Serial.println("Task "#Cl" starting"),(xTaskCreate((TaskFunction_t)&taskWrapper<Cl>, this->taskName.c_str(), 8192, this, 1, nullptr) == pdPASS ? this : NULL))))
 
 #include "help.h"
 
@@ -9,7 +9,7 @@
 #include <freertos/FreeRTOS.h>
 //#include <portmacro.h>
 
-#include <type_traits>
+//#include <type_traits>
 
 template <typename C>
 void taskWrapper(C* p) {

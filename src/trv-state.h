@@ -12,7 +12,7 @@ typedef struct trv_state_s
 {
   // Read only
   float temperature;
-  uint16_t batteryRaw;
+  uint32_t batteryRaw;
   uint8_t batteryPercent;
   uint8_t isCharging;
   uint8_t valve_position;

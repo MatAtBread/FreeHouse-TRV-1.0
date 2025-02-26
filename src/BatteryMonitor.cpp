@@ -12,12 +12,12 @@ bool BatteryMonitor::isCharging() {
   return digitalRead(pin) != 0;
 }
 
-uint16_t BatteryMonitor::getRawValue() {
+uint32_t BatteryMonitor::getRawValue() {
   return analogReadMilliVolts(adc) * 2;
 }
 
-uint16_t BatteryMonitor::getValue() {
-  unsigned int a = getRawValue();
+uint32_t BatteryMonitor::getValue() {
+  auto a = getRawValue();
   int n = 1;
   for (int i=0; i<5; i++) {
     uint32_t b = getRawValue();
@@ -30,14 +30,14 @@ uint16_t BatteryMonitor::getValue() {
   return a/n;
 }
 
-uint16_t BatteryMonitor::getPercent(int raw) {
-  if (raw < 0)
+uint8_t BatteryMonitor::getPercent(uint32_t raw) {
+  if (raw == NO_VALUE)
     raw = analogReadMilliVolts(adc) * 2;
 
-  auto percent = ((int)raw - 3000) / 8;
+  auto percent = (raw - 3000U) / 8;
   if (percent < 0)
     percent = 0;
   else if (percent > 100)
     percent = 100;
-  return percent;
+  return (uint8_t)percent;
 }

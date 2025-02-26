@@ -11,6 +11,7 @@ WithTask::WithTask(const char *_name): started(NULL) /*, isRunning(false)*/ {
 
 void WithTask::start() {
   task();
+  started = NULL;
 }
 
 Heartbeat::Heartbeat() {
