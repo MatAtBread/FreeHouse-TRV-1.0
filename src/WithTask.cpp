@@ -2,11 +2,7 @@
 
 #include <HardwareSerial.h>
 
-WithTask::WithTask(const char *_name): started(NULL) /*, isRunning(false)*/ {
-  if (_name)
-    taskName = _name;
-  else
-    taskName = String("WithTask#") + String(taskId++);
+WithTask::WithTask(): started(NULL) /*, isRunning(false)*/ {
 }
 
 void WithTask::start() {
@@ -38,12 +34,19 @@ void Heartbeat::task() {
 void Heartbeat::ping(uint32_t timeout) {
   auto now = millis();
   auto next = timeout + now;
+  TaskStatus_t taskInfo;
+  vTaskGetInfo(NULL, &taskInfo, pdTRUE, eInvalid);
   if (next > sleepAt) {
-    // Serial.printf("%u ping(%u) > %u\n", now, timeout, next);
+    Serial.printf("%s %u ping(%u) > %u\n", taskInfo.pcTaskName, now, timeout, next);
     sleepAt = next;
   } else {
-    // Serial.printf("%u ping(%u) = %u\n", now, timeout, sleepAt);
+    Serial.printf("%s %u ping(%u) = %u\n", taskInfo.pcTaskName, now, timeout, sleepAt);
   }
+}
+
+void Heartbeat::sleep(uint32_t timeout) {
+  ping(timeout + 50);
+  delay(timeout);
 }
 
 void Heartbeat::cardiacArrest(uint32_t ms) {

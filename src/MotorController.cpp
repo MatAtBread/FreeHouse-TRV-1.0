@@ -61,6 +61,15 @@ uint8_t MotorController::getValvePosition() {
   return current;
 }
 
+bool MotorController::delayUntilIdle() {
+  while ((target != current) || (getDirection() != 0)) {
+    //Serial.printf(F("delayUntilIdle t: %d c: %d d: %d busy: %d\n"), target, current, getDirection(), busy);
+    heartbeat->sleep(1234);
+  }
+  Serial.println(F("MotorController::delayUntilIdle done"));
+  return true;
+}
+
 // The task depends on the members target & getDirection(), which is why we start it when any of them change
 void MotorController::task() {
   // Get an average battery level
@@ -69,14 +78,14 @@ void MotorController::task() {
 
   while (true) {
     auto now = millis();
-    Serial.printf("MotorController::task dir: %d, mv %d, tg %d, cp %d, to %lu,%lu,%d\n", getDirection(), mv, target, current, timeout, now, timeout > now);
-    delay(299);
+    delay(297);
     if (target != current) {
       auto dir = target > current ? 1 : -1;
       if (dir != getDirection()) {
         setDirection(dir);
         timeout = now + maxMotorTime;
         heartbeat->ping(600);
+        Serial.printf("MotorController::task dir: %d, mv %d, tg %d, cp %d, to %lu,%lu,%d\n", getDirection(), mv, target, current, timeout, now, timeout > now);
         continue;
       }
     }
@@ -90,12 +99,14 @@ void MotorController::task() {
       current = target;
       setDirection(0);
       timeout = 0;
+      Serial.printf("MotorController::task dir: %d, mv %d, tg %d, cp %d, to %lu,%lu,%d\n", getDirection(), mv, target, current, timeout, now, timeout > now);
     } else if (timeout && timeout < now) {
       // Motor has timed-out
       Serial.println(F("Motor timed-out"));
       target = current = 50;
       timeout = 0;
       setDirection(0);
+      Serial.printf("MotorController::task dir: %d, mv %d, tg %d, cp %d, to %lu,%lu,%d\n", getDirection(), mv, target, current, timeout, now, timeout > now);
     } else {
       heartbeat->ping(600);
     }

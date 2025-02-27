@@ -30,8 +30,13 @@ Trv::Trv(Heartbeat* heartbeat, bool wakeUp) {
 
     Serial.println("Reset: open valve");
     // When restarting after a reset or power loss (eg new battery), force open the valve
-    globalState.valve_position = 50; // We don't know what the valve position is after a reset
+    globalState.valve_position = 50; // We don't know what the valve position is after a hard reset
     motor->setValvePosition(100);
+    Serial.println("Reset: wait until valve opened");
+    motor->delayUntilIdle();
+    // Once the valve is open, we can set the target position depending on the state
+    Serial.println("Reset: valve opened, set system mode");
+    setSysteMode(globalState.systemMode);
   }
 }
 
@@ -41,7 +46,7 @@ trv_state_t& Trv::getState(){
   globalState.temperature = tempSensor->readTemp() + globalState.temperatureCalibration;
   globalState.isCharging = battery->isCharging();
   globalState.valve_position = motor->getValvePosition();
-  // We only update battery values when teh motor is off. If it's moving, it will drop due to the loading
+  // We only update battery values when the motor is off. If it's moving, it will drop due to the loading
   if (motor->getDirection() == 0) {
     globalState.batteryRaw = battery->getValue();
     globalState.batteryPercent = battery->getPercent(globalState.batteryRaw);
@@ -68,9 +73,10 @@ void Trv::setSysteMode(esp_zb_zcl_thermostat_system_mode_t mode){
   globalState.systemMode = mode;
   if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF) {
     motor->setValvePosition(0);
-  }
-  if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT) {
+  } else if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT) {
     motor->setValvePosition(100);
+  } else if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO) {
+    checkAutoState();
   }
 }
 

@@ -1,7 +1,7 @@
 #ifndef WithTask_h
 #define WithTask_h
 
-#define StartTask(Cl) (started ? (Serial.println("Task "#Cl" running"), started) : (started = (Serial.println("Task "#Cl" starting"),(xTaskCreate((TaskFunction_t)&taskWrapper<Cl>, this->taskName.c_str(), 8192, this, 1, nullptr) == pdPASS ? this : NULL))))
+#define StartTask(Cl) (started ? (Serial.println("Task "#Cl" running"), started) : (started = (Serial.println("Task "#Cl" starting"),(xTaskCreate((TaskFunction_t)&taskWrapper<Cl>, #Cl, 8192, this, 1, nullptr) == pdPASS ? this : NULL))))
 
 #include "help.h"
 
@@ -22,9 +22,8 @@ class WithTask {
   inline static int taskId = 0;
 
 public:
-  String taskName;
   WithTask *started;
-  WithTask(const char* _name = NULL);
+  WithTask();
   virtual ~WithTask() {}
 
   // Pure virtual function to be implemented by derived classes
@@ -41,6 +40,7 @@ class Heartbeat : public WithTask {
   virtual ~Heartbeat(){};
   void task();
   void ping(uint32_t timeout);
-  void cardiacArrest(uint32_t millis = 7500);
+  void sleep(uint32_t timeout);
+  void cardiacArrest(uint32_t millis = 500);
 };
 #endif

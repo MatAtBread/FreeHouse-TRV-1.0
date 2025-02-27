@@ -20,6 +20,7 @@ class MotorController: public WithTask {
   int getDirection();
   void setValvePosition(uint8_t pos);
   uint8_t getValvePosition();
+  bool delayUntilIdle();
 };
 
 #endif
