@@ -1,99 +1,187 @@
 #include "../trv.h"
+
+#include <string.h>
+#include <sstream>
+
 #include "trv-state.h"
 
-#include <HardwareSerial.h>
+#define MOTOR 17     // D7
+#define NSLEEP 19    // D8
+#define CHARGING 20  // D9
+#define DTEMP 18     // D10
+#define BATTERY 0    // A0
 
-#define MOTOR 17 // D7 // (and 16:D6 on the Dev board)
-#define NSLEEP 19 // D8
-#define CHARGING 20 // D9
-#define DTEMP 18 // D10
-#define BATTERY 0 // A0
+#define STATE_VERSION 1
 
-static RTC_DATA_ATTR trv_state_t globalState;
+extern const char *systemModes[];
 
-static trv_state_t &getLastState() { return globalState; }
+static RTC_DATA_ATTR trv_state_t globalState = {
+  .version = STATE_VERSION,
+  .sensors = {
+    .local_temperature = 20.0,
+    .batteryRaw = 3500,
+    .batteryPercent = 50,
+    .is_charging = 0,
+    .position = 100,
+  },
+  .config = {
+    .current_heating_setpoint = 21.5,
+    .local_temperature_calibration = 0.0,
+    .system_mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT,
+    .netMode = NET_MODE_ESP_NOW,
+    .mqttConfig = {
+        .wifi_ssid = "wifi-ssid",
+        .wifi_pwd = "wifi-pwd",
+        .device_name = "",
+        .mqtt_server = "mqtt.local",
+        .mqtt_port = 1883,
+    }
+  }
+};
 
-Trv::Trv(Heartbeat* heartbeat) {
-  tempSensor = new DallasOneWire(DTEMP);
+const char *Trv::deviceName() { return globalState.config.mqttConfig.device_name; }
+
+Trv::Trv() {
+  fs = new TrvFS();
+
+  // Try loading the config from the filesystem
+  trv_state_t state;
+  if (!fs->read("/trv/state", &state, sizeof(state)) || state.version != STATE_VERSION) {
+    // By default we stay in heat mode so that when assembling the hardware, the plunger stays in place
+    globalState.config.system_mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT;
+    globalState.config.netMode = NET_MODE_ESP_NOW;
+    globalState.config.mqttConfig.mqtt_port = 1883;
+    globalState.config.local_temperature_calibration = 0.0;
+    globalState.config.current_heating_setpoint = 21;
+  } else {
+    globalState.config = state.config;
+  }
+
+  // Get the sensor values
   battery = new BatteryMonitor(BATTERY, CHARGING);
-  motor = new MotorController(MOTOR /* and D6 on dev board*/, NSLEEP, heartbeat, battery, globalState.valve_position);
-
-  // Maybe implement this another time.
-  globalState.temperatureCalibration = 0.0;
-  // Initialize output values
-  getState();
-  // Initialize user values
+  tempSensor = new DallasOneWire(DTEMP, globalState.sensors.local_temperature);
+  motor = new MotorController(MOTOR, NSLEEP, battery, globalState.sensors.position);
+  getState(true); // Lazily update temp
+  ESP_LOGI(TAG,"Initial state: '%s' mqtt://%s:%d, wifi %s >> %s",
+    globalState.config.mqttConfig.device_name,
+    globalState.config.mqttConfig.mqtt_server,
+    globalState.config.mqttConfig.mqtt_port,
+    globalState.config.mqttConfig.wifi_ssid,
+    asJson(globalState).c_str());
 }
 
-Trv::~Trv(){}
+Trv::~Trv() {
+  delete battery;
+  delete tempSensor;
+  delete motor;
+}
+
+std::string Trv::asJson(const trv_state_t& s) {
+  std::stringstream json;
+  json << "{"
+    "\"local_temperature\":" << s.sensors.local_temperature << ","
+    "\"batteryPercent\":" << (int)s.sensors.batteryPercent << ","
+    "\"battery_mv\":" << (int)s.sensors.batteryRaw << ","
+    "\"is_charging\":" << (s.sensors.is_charging ? "true" : "false") << ","
+    "\"position\":" << (int)s.sensors.position << ","
+    "\"current_heating_setpoint\":" << s.config.current_heating_setpoint << ","
+    "\"local_temperature_calibration\":" << s.config.local_temperature_calibration << ","
+    "\"system_mode\":\"" << systemModes[s.config.system_mode] << "\""
+    "}";
+
+  return json.str();
+}
+
+void Trv::saveState() {
+  auto saved = fs->write("/trv/state", &globalState, sizeof(globalState));
+  ESP_LOGI(TAG, "saveState: %d", saved);
+}
 
 void Trv::resetValve() {
-  if (globalState.heatingSetpoint < 10 || globalState.heatingSetpoint > 30)
-  globalState.heatingSetpoint = 21.5;
-
-// if (globalState.systemMode < ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF || globalState.systemMode > ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT)
-  // By default we stay in heat mode so that when assembling the hardware, the plunger stays in place
-  globalState.systemMode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT;
-
-_log("Reset: open valve");
-// When restarting after a reset or power loss (eg new battery), force open the valve
-globalState.valve_position = 50; // We don't know what the valve position is after a hard reset
-motor->setValvePosition(100);
-_log("Reset: wait until valve opened");
-motor->awaitIdle();
-// Once the valve is open, we can set the target position depending on the state
-_log("Reset: valve opened, set system mode");
-setSysteMode(globalState.systemMode);
+  ESP_LOGI(TAG, "Reset: open valve");
+  // When restarting after a reset or power loss (eg new battery), force open the valve
+  globalState.sensors.position = 50;  // We don't know what the valve position is after a hard reset
+  motor->setValvePosition(100);
+  ESP_LOGI(TAG, "Reset: wait until valve opened");
+  while (motor->started) {
+    delay(1234);
+  }
+  // Once the valve is open, we can set the target position depending on the state
+  ESP_LOGI(TAG, "Reset: valve opened, set system mode");
+  setSystemMode(globalState.config.system_mode);
 }
 
-
-trv_state_t& Trv::getState(){
-  globalState.temperature = tempSensor->readTemp() + globalState.temperatureCalibration;
-  globalState.isCharging = battery->isCharging();
-  globalState.valve_position = motor->getValvePosition();
+const trv_state_t& Trv::getState(bool fast) {
+  if (!fast) {
+    globalState.sensors.local_temperature = tempSensor->readTemp() + globalState.config.local_temperature_calibration;
+  }
+  globalState.sensors.is_charging = battery->is_charging();
+  globalState.sensors.position = motor->getValvePosition();
   // We only update battery values when the motor is off. If it's moving, it will drop due to the loading
   if (motor->getDirection() == 0) {
-    globalState.batteryRaw = battery->getValue();
-    globalState.batteryPercent = battery->getPercent(globalState.batteryRaw);
+    globalState.sensors.batteryRaw = battery->getValue();
+    globalState.sensors.batteryPercent = battery->getPercent(globalState.sensors.batteryRaw);
   }
 
   return globalState;
+}
+
+void Trv::setNetMode(net_mode_t mode, trv_mqtt_t *mqtt){
+  globalState.config.netMode = mode;
+  if (mqtt) {
+    memcpy(&globalState.config.mqttConfig, mqtt, sizeof(trv_mqtt_t));
+    ESP_LOGI(TAG, "Enable mqtt %s, %s, %s, %s:%d", globalState.config.mqttConfig.device_name, globalState.config.mqttConfig.wifi_ssid, globalState.config.mqttConfig.wifi_pwd, globalState.config.mqttConfig.mqtt_server, globalState.config.mqttConfig.mqtt_port);
+  }
+  saveState();
+  // We should probably do a restart to make sure there are no clashes with other operations
 }
 
 bool Trv::flatBattery() {
   return battery->getPercent() <= 1;
 }
 
+bool Trv::is_charging() {
+  return battery->is_charging();
+}
+
 void Trv::setTempCalibration(float temp) {
-  globalState.temperatureCalibration = temp;
+  globalState.config.local_temperature_calibration = temp;
+  saveState();
   checkAutoState();
 }
 
-void Trv::setHeatingSetpoint(float temp){
-  globalState.heatingSetpoint = temp;
+void Trv::setHeatingSetpoint(float temp) {
+  globalState.config.current_heating_setpoint = temp;
+  saveState();
   checkAutoState();
 }
 
-void Trv::setSysteMode(esp_zb_zcl_thermostat_system_mode_t mode){
-  globalState.systemMode = mode;
+void Trv::setSystemMode(esp_zb_zcl_thermostat_system_mode_t mode) {
   if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF) {
+    globalState.config.system_mode = mode;
+    saveState();
     motor->setValvePosition(0);
   } else if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT) {
+    globalState.config.system_mode = mode;
+    saveState();
     motor->setValvePosition(100);
   } else if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO) {
+    globalState.config.system_mode = mode;
+    saveState();
     checkAutoState();
   } else if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP) {
+    globalState.config.system_mode = mode;
+    saveState();
     // In sleep mode we just don't move the plunger at all
   }
 }
 
 void Trv::checkAutoState() {
-  auto state = getState();
-  _log("checkAutoState: %f %f %d", state.temperature, state.heatingSetpoint, state.systemMode);
-  if (state.systemMode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO) {
-    if (state.temperature > state.heatingSetpoint + 0.5) {
+  auto state = getState(true);
+  if (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO) {
+    if (state.sensors.local_temperature > state.config.current_heating_setpoint + 0.5) {
       motor->setValvePosition(0);
-    } else if (state.temperature < state.heatingSetpoint) {
+    } else if (state.sensors.local_temperature < state.config.current_heating_setpoint) {
       motor->setValvePosition(100);
     }
   }

@@ -3,18 +3,18 @@
 
 #include <stdint.h>
 
-#define NO_VALUE (uint32_t)-1
+#define NO_VALUE -1
 class BatteryMonitor {
  protected:
   uint8_t adc;
   uint8_t pin;
-  uint32_t getRawValue();
+  int getRawValue();
 
  public:
   BatteryMonitor(uint8_t adc, uint8_t chargeIoPin);
-  bool isCharging();
-  uint8_t getPercent(uint32_t raw = NO_VALUE);
-  uint32_t getValue(); // Get an average value
+  bool is_charging();
+  uint8_t getPercent(int raw = NO_VALUE);
+  int getValue(); // Get an average value
 };
 
 #endif

@@ -29,7 +29,7 @@ static bool _parse_reset_symbols (size_t num_symbols, rmt_symbol_word_t *symbols
             return false;
     }
     if (num_symbols > 1 &&
-        symbols[0].duration1 < OW_TIMING_PARAM_I && 
+        symbols[0].duration1 < OW_TIMING_PARAM_I &&
         symbols[1].duration0 + symbols[0].duration1 >= OW_TIMING_PARAM_I) {
             return true;
         }
@@ -39,8 +39,8 @@ static bool _parse_reset_symbols (size_t num_symbols, rmt_symbol_word_t *symbols
 
 bool ow_reset (OW *ow) {
     rmt_rx_done_event_data_t evt;
-    rmt_receive (ow->rx_channel, ow->rx_buffer, ow->rx_buflen, &rx_config);
-    rmt_transmit (ow->tx_channel, ow->copy_encoder, &symbol_reset, sizeof (rmt_symbol_word_t), &tx_config);
+    ESP_ERROR_CHECK_WITHOUT_ABORT(rmt_receive (ow->rx_channel, ow->rx_buffer, ow->rx_buflen, &rx_config));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(rmt_transmit (ow->tx_channel, ow->copy_encoder, &symbol_reset, sizeof (rmt_symbol_word_t), &tx_config));
     if (xQueueReceive (ow->rx_queue, &evt, pdMS_TO_TICKS(OW_RMT_TIMEOUT_MS)) != pdTRUE) {
         ESP_LOGE(__func__, "rx timeout");
         return false;

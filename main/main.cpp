@@ -1,127 +1,130 @@
 // the setup function runs once when you press reset or power the board
-#define TOUCH_PIN A1
+#define TOUCH_PIN 1
 
 #include "trv.h"
 
-#include <WiFi.h>
-#include <ZigbeeEP.h>
-#include <esp_coexist.h>
+#include "esp_sleep.h"
+#include "hal/uart_types.h"
+#include "driver/uart.h"
+#include "esp_netif.h"
+#include "esp_pm.h"
+#include "nvs_flash.h"
 
-#include "src/ZigbeeTRV.h"
+#include "../common/gpio/gpio.hpp"
+
 #include "src/WithTask.h"
 #include "src/CaptiveWifi.h"
 #include "src/trv-state.h"
+#include "net/esp-now.hpp"
 
-RTC_DATA_ATTR int wakeCount = 0;
-#undef LED_BUILTIN
-#define LED_BUILTIN 15
-
-class HeartMonitor: public Heartbeat {
-  public:
-    HeartMonitor() {
-      // Default - do a short flash every 500ms
-      // ledcAttach(LED_BUILTIN, 2 /* Hz */, 8);
-      // ledcWrite(LED_BUILTIN, 16);
-      pinMode(LED_BUILTIN, OUTPUT);
-      digitalWrite(LED_BUILTIN, LOW);
-    }
-
-    ~HeartMonitor() {
-      // In reality, this won't get called as the heartbeat only stops when we go into deep sleep
-      digitalWrite(LED_BUILTIN, HIGH);
-      // ledcWrite(LED_BUILTIN, 0);
-      // ledcDetach(LED_BUILTIN);
-    }
-};
-
-ZigbeeTRV* zbTrv;
-
-void tryZigbee() {
-  zbTrv = new ZigbeeTRV(1);
-  _log("Zigbee coexistance %d...", esp_coex_wifi_i154_enable());
-
-  zbTrv->setManufacturerAndModel("FreeHouse", "TRV");
-  zbTrv->setPowerSource(zb_power_source_t::ZB_POWER_SOURCE_BATTERY);
-  Zigbee.addEndpoint(zbTrv);
-
-  Zigbee.begin(ZIGBEE_END_DEVICE);
-  _log("Startied zigbee");
+extern "C" {
+  const char *TAG = "TRV";
 }
 
 // Sample the touch ADC for up to 1050ms to see if it was touched for the whole second
 // bails returning false if it was released/not touched suring that period.
 bool touchButtonPressed() {
-  bool touch = false;
-  for (int i = 0; i <= 6; i++) {
-    auto n = analogRead(TOUCH_PIN);
-    _log("Touch test %u", (unsigned int)n);
-    if (n < 0x100)
-      break;
-    if (i == 6) {
-      _log("Touch button pressed");
-      touch = true;
-      break;
+  for (int i = 0;; i++) {
+    auto n = GPIO::analogRead(TOUCH_PIN);
+    ESP_LOGI(TAG, "Touch test %d", n);
+    if (n >= 0 && n < 256) {
+      return false;
     }
-    delay(150);
+    if (i == 6) {
+      ESP_LOGI(TAG, "Touch button pressed");
+      return true;
+    }
+    delay(100);
   }
-  return touch;
 }
 
-void setup() {
+void checkForMessages(Trv *trv) {
+
+  // Create `net` based on config
+  // auto state = Trv::getLastState();
+  // ESP_LOGI(TAG, "checkIncomingMessages using netMode %u", state->netMode);
+  // switch (state->netMode) {
+  //   case NET_MODE_ESP_NOW:
+  EspNet *net = new EspNet(trv);
+  //   break;
+  //   case NET_MODE_MQTT:
+  //   break;
+  //   case NET_MODE_ZIGBEE:
+  //   break;
+  // }
+  net->checkMessages();
+  trv->checkAutoState();
+  while (WithTask::numRunning) {
+    delay(100);
+  }
+  net->sendStateToHub(trv->getState(false));
+  trv->saveState();
+  delete net;
+  delay(10);
+}
+
+static RTC_DATA_ATTR int wakeCount = 0;
+
+extern "C" void app_main() {
+  // esp_log_level_set("*", ESP_LOG_WARN);
+  esp_log_level_set(TAG, ESP_LOG_VERBOSE);
+
   auto wakeCause = esp_sleep_get_wakeup_cause();
   wakeCount += 1;
-  analogRead(TOUCH_PIN);
-  // Serial.begin(115200);
-  // ddelay(1000); // Debug delay for Serial
+  ESP_LOGI(TAG, "Wake: %d reset: %d count: %d", wakeCause, esp_reset_reason(), wakeCount);
+  GPIO::pinMode(LED_BUILTIN, OUTPUT);
+  GPIO::digitalWrite(LED_BUILTIN, false);
 
-  // Enter WiFi config mode on hard reset or touch
-  bool touch = touchButtonPressed() || wakeCause == ESP_SLEEP_WAKEUP_UNDEFINED;
-  bool dreaming = (wakeCount & 7)==0;
-  _log("Wake cause: %d #%d, touch: %d, dreaming: %d", wakeCause, wakeCount, touch, dreaming);
-  Heartbeat* heartbeat = new HeartMonitor();
+  // {
+  //   ESP_LOGI(TAG, "DEBUG DELAY");
+  //   for (int i=0; i<25; i++) {
+  //     GPIO::digitalWrite(LED_BUILTIN, i & 1);
+  //     delay(200);
+  //   }
+  //   ESP_LOGI(TAG, "DEBUG DELAY");
+  // }
 
-  if (touch || dreaming) {
-    Trv* trv = new Trv(heartbeat);
+  esp_err_t ret = nvs_flash_init();
+  if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    ESP_ERROR_CHECK(nvs_flash_erase());
+    ret = nvs_flash_init();
+  }
+  ESP_ERROR_CHECK(ret);
+
+  ESP_ERROR_CHECK(esp_netif_init());
+  ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+  // ESP_LOGI(TAG,"Heap %lu",esp_get_free_heap_size());
+  GPIO::digitalWrite(LED_BUILTIN, false);
+  Trv *trv = new Trv();
+  uint32_t dreamTime;
+
+  if (trv->flatBattery()) {
+    ESP_LOGI(TAG, "Battery exhausted");
+    dreamTime = 60 * 60 * 1000000UL;  // 1 hour
+  } else {
     if (wakeCause == ESP_SLEEP_WAKEUP_UNDEFINED) {
+      wakeCause = ESP_SLEEP_WAKEUP_ALL;  // To suppress further reset in no-sleep mode
       trv->resetValve();
     }
 
-    if (touch) {
-      _log("Touch button pressed");
-      // Note: we DON'T tryZigbee() here as ESP32-C6 can't do a WiFi AP mode and start the ZB stack at the same time
-      new CaptivePortal(heartbeat, trv);
-    } else if (dreaming) {
-      _log("Dreaming");
-      if (trv->flatBattery()) {
-        _log("Battery exhausted");
-        heartbeat->cardiacArrest(86400000U);
-      } else {
-        //ToDo
-        // Process any zigbee msgs...
-        tryZigbee();
-        // Every 8 * 7.5 (one minute) check if the valve needs updating in auto-mode.
-        trv->checkAutoState();
-
-        // auto state = trv->getState();
-        // and update ZB state esp_zb_zcl_update_reporting_info;
-        heartbeat->ping(50);
+    if (!trv->deviceName()[0] || touchButtonPressed()) {
+      ESP_LOGI(TAG, "Touch button pressed");
+      new CaptivePortal(trv, trv->deviceName());
+      // wait for max 10 mins. The CaptivePortal will restart the device under user control
+      for (int i = 0; i < 10 * 60; i++) {
+        GPIO::digitalWrite(LED_BUILTIN, i & 1);
+        delay(i & 1 ? 900 : 100);
       }
+      dreamTime = 1;
+    } else {
+      checkForMessages(trv);
+      dreamTime = 15 * 1000000UL;  // 15 seconds
     }
-  } else {
-    _log("Ping");
-    // Process any zigbee msgs...
-    tryZigbee();
-    // ...and go to sleep
-    heartbeat->ping(0);
   }
+
+  delete trv;
+  GPIO::digitalWrite(LED_BUILTIN, true);
+  ESP_LOGI(TAG, "%s %lu", "deep sleep", dreamTime);
+  esp_deep_sleep(dreamTime);
 }
-
-extern "C" void app_main() {
-  esp_log_level_set(TAG, ESP_LOG_INFO);
-
-  initArduino();
-  setup();
-  vTaskDelete(NULL);
-  //while(1) vTaskDelay(portMAX_DELAY);
-}
-

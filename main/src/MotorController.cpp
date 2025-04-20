@@ -1,117 +1,120 @@
 #include "../trv.h"
-
+#include "../../common/gpio/gpio.hpp"
 #include "MotorController.h"
 
-#include <esp32-hal-adc.h>
-#include <esp32-hal-gpio.h>
-#include <HardwareSerial.h>
-
-#define taskStarup 1000
+#define minMotorTime 1250
 #define maxMotorTime 30000
 
-MotorController::MotorController(uint8_t pinDir, uint8_t pinSleep, Heartbeat* heartbeat, BatteryMonitor* battery, uint8_t &current) : pinDir(pinDir), pinSleep(pinSleep), heartbeat(heartbeat), battery(battery), current(current) {
+MotorController::MotorController(uint8_t pinDir, uint8_t pinSleep, BatteryMonitor* battery, uint8_t &current) : pinDir(pinDir), pinSleep(pinSleep), battery(battery), current(current) {
   target = current;
-  pinMode(pinSleep, OUTPUT);
-  pinMode(pinDir, OUTPUT);
-  // pinMode(pinDir - 1, OUTPUT); // Dev board
+  GPIO::pinMode(pinSleep, OUTPUT);
+  GPIO::pinMode(pinDir, OUTPUT);
+  setDirection(0);
 
-  // Ensure the Motor driver goes off in deep sleep (Todo: check if this is needed here, or when entereing deep sleep)
+  // (Todo: check if this is needed here, or when entereing sleep)
   // rtc_gpio_hold_en((gpio_num_t)NSLEEP);
   // rtc_gpio_pulldown_dis((gpio_num_t)NSLEEP);
   // rtc_gpio_pullup_en((gpio_num_t)NSLEEP);
 }
 
+MotorController::~MotorController() {
+  while (started) delay(50);
+}
+
 int MotorController::getDirection() {
-  if (digitalRead(pinSleep) == LOW) return 0;
-  return digitalRead(pinDir) ? -1 : 1;
+  if (GPIO::digitalRead(pinSleep) == false) return 0;
+  return GPIO::digitalRead(pinDir) ? 1 : -1;
 }
 
 
 void MotorController::setDirection(int dir) {
   // We don't need to enable the task here, as this protected method can only be called from within the task()
-  _log("MotorController::setDirection %d", dir);
+  ESP_LOGI(TAG, "MotorController::setDirection %d", dir);
   switch (dir) {
-    case 1:
-      digitalWrite(pinSleep, HIGH);
-      digitalWrite(pinDir, LOW);
-      // digitalWrite(pinDir - 1, HIGH); // Dev board
-      break;
     case -1:
-      digitalWrite(pinSleep, HIGH);
-      digitalWrite(pinDir, HIGH);
-      // digitalWrite(pinDir - 1, LOW); // Dev board
+      GPIO::digitalWrite(pinDir, false);
+      GPIO::digitalWrite(pinSleep, true);
+      break;
+    case 1:
+      GPIO::digitalWrite(pinDir, true);
+      GPIO::digitalWrite(pinSleep, true);
       break;
     default:
-      digitalWrite(pinSleep, LOW);
-      digitalWrite(pinDir, LOW);
-      // digitalWrite(pinDir - 1, LOW); // Dev board
+      GPIO::digitalWrite(pinSleep, false);
       break;
   }
 }
 
 void MotorController::setValvePosition(uint8_t pos) {
-  _log("MotorController::setValvePosition %d %d", pos, target);
-  if (pos != target) {
-    // Let task pick up the change (we could wait until the next dreamtime)
-    target = pos;
-    heartbeat->ping(taskStarup);
-    StartTask(MotorController);
-  }
+  ESP_LOGI(TAG, "MotorController::setValvePosition %d %d", pos, target);
+  // Let task pick up the change (we could wait until the next dreamtime)
+  target = pos;
+  StartTask(MotorController);
 }
 
 uint8_t MotorController::getValvePosition() {
   return current;
 }
 
-bool MotorController::awaitIdle() {
-  while ((target != current) || (getDirection() != 0)) {
-    //_log("awaitIdle t: %d c: %d d: %d busy: %d\n"), target, current, getDirection(), busy);
-    heartbeat->sleep(1234);
-  }
-  _log("MotorController::awaitIdle done");
-  return true;
-}
-
 // The task depends on the members target & getDirection(), which is why we start it when any of them change
 void MotorController::task() {
-  // Get an average battery level
-  uint32_t mv = battery->getValue();
-  unsigned long timeout = 0;
+  // Get a stable battery level
+  auto noloadBatt = battery->getValue();
+  auto sample = noloadBatt;
+  for (int i=0; i<10; i++) {
+    delay(10);
+    sample = battery->getValue();
+    if (abs((signed)(noloadBatt - sample)) < 100)
+      break;
+    noloadBatt = (noloadBatt * 7 + sample) / 8;
+  }
+
+  if (noloadBatt < 1000) {
+    ESP_LOGW(TAG, "MotorController::task noloadBatt %d too low, stop", noloadBatt);
+    target = current = 50;
+    return;
+  }
+
+  unsigned long startTime = 0;
+  ESP_LOGI(TAG, "MotorController::task start noloadBatt %d, target %d, current %d", noloadBatt, target, current);
 
   while (true) {
     auto now = millis();
-    delay(297);
+    auto currentDir = getDirection();
     if (target != current) {
       auto dir = target > current ? 1 : -1;
-      if (dir != getDirection()) {
-        setDirection(dir);
-        timeout = now + maxMotorTime;
-        heartbeat->ping(600);
-        _log("MotorController::task dir: %d, mv %ld, tg %d, cp %d, to %lu,%lu,%d", getDirection(), mv, target, current, timeout, now, timeout > now);
-        continue;
+      if (dir != currentDir) {
+        setDirection(currentDir = dir);
+        startTime = now;
+        ESP_LOGI(TAG, "MotorController::task dir: %d, currentDir: %d, target %d, current %d", dir, currentDir, target, current);
       }
     }
 
     auto batt = battery->getValue();
-    if (getDirection() == 0) {
-      mv = (mv * 4 + batt) / 5;
-    } else if (batt < (mv*7)/8) {
+    auto runTime = startTime ? now - startTime : 0;
+    if (startTime)
+      ESP_LOGI(TAG, "MotorController::task dir: %d, noloadBatt %d, batt %d, target %d, current %d, runTime: %lu", currentDir, noloadBatt, batt, target, current, runTime);
+    if (currentDir == 0) {
+      noloadBatt = (noloadBatt * 7 + batt) / 8;
+    } else if (runTime >= minMotorTime && batt < (noloadBatt * 7) / 8) {
       // Motor has stalled
-      _log("Motor stalled %lu %lu", batt, mv);
+      ESP_LOGI(TAG, "Motor stalled batt %d, noLoadBatt %d", batt, noloadBatt);
       current = target;
       setDirection(0);
-      timeout = 0;
-      _log("MotorController::task dir: %d, mv %ld, tg %d, cp %d, to %lu,%lu,%d", getDirection(), mv, target, current, timeout, now, timeout > now);
-    } else if (timeout && timeout < now) {
+      startTime = 0;
+    } else if (runTime > maxMotorTime) {
       // Motor has timed-out
-      _log("Motor timed-out");
+      ESP_LOGI(TAG, "Motor timed-out");
       target = 50;
       current = 50;
-      timeout = 0;
+      startTime = 0;
       setDirection(0);
-      _log("MotorController::task dir: %d, mv %ld, tg %d, cp %d, to %lu,%lu,%d", getDirection(), mv, target, current, timeout, now, timeout > now);
     } else {
-      heartbeat->ping(600);
+      current = 50 + currentDir;
     }
+    if (getDirection() || target != current)
+      delay(250);
+    else
+      return;
   }
 }

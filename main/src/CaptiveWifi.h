@@ -1,21 +1,17 @@
-#ifndef CAPATIVE_WIFI_H
-#define CAPATIVE_WIFI_H
+#ifndef CAPTIVE_WIFI_H
+#define CAPTIVE_WIFI_H
 
-#include "DNSServer.h"
-#include "WiFi.h"
-#include "WithTask.h"
 #include "trv-state.h"
+#include "../../common/captiveportal/wifi-captiveportal.h"
 
-class CaptivePortal : public WithTask {
+class CaptivePortal: public HttpGetHandler {
  protected:
-  Heartbeat* heartbeat;
-  WiFiServer server;
-  DNSServer dnsServer;
   Trv* trv;
+  uint32_t timeout;
 
  public:
-  CaptivePortal(Heartbeat* heartbeat, Trv* trv);
-  void task();
+  CaptivePortal(Trv* trv, const char *name);
+  virtual esp_err_t getHandler(httpd_req_t *req);
 };
 
 #endif

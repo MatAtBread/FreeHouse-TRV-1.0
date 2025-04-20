@@ -1,40 +1,38 @@
+#include "../trv.h"
+#include "../../common/gpio/gpio.hpp"
 #include "BatteryMonitor.h"
 
-#include <esp32-hal-adc.h>
-#include <esp32-hal-gpio.h>
-
 BatteryMonitor::BatteryMonitor(uint8_t adc, uint8_t chargeIoPin) : adc(adc), pin(chargeIoPin) {
-  analogRead(adc);
-  pinMode(pin, INPUT);
+  GPIO::pinMode(pin, INPUT);
+  getRawValue();
 };
 
-bool BatteryMonitor::isCharging() {
-  return digitalRead(pin) != 0;
+bool BatteryMonitor::is_charging() {
+  return GPIO::digitalRead(pin) != 0;
 }
 
-uint32_t BatteryMonitor::getRawValue() {
-  return analogReadMilliVolts(adc) * 2;
+int BatteryMonitor::getRawValue() {
+  return GPIO::analogReadMilliVolts(adc) * 2;
 }
 
-uint32_t BatteryMonitor::getValue() {
-  auto a = getRawValue();
-  int n = 1;
-  for (int i=0; i<5; i++) {
-    uint32_t b = getRawValue();
-    if (b>0) {
-      a += b;
-      n += 1;
-    }
-    delay(50);
-  }
-  return a/n;
+int BatteryMonitor::getValue() {
+  auto a = 0;
+  for (int i=0; i<10; i++)
+    a += getRawValue();
+
+  return a / 10;
 }
 
-uint8_t BatteryMonitor::getPercent(uint32_t raw) {
+uint8_t BatteryMonitor::getPercent(int raw) {
   if (raw == NO_VALUE)
-    raw = analogReadMilliVolts(adc) * 2;
+    raw = getRawValue();
 
-  auto percent = (raw - 3000U) / 8;
+  if (raw < 0) {
+    // Something bad happend - just ignore it for now
+    return 50;
+  }
+
+  auto percent = (raw - 3100) / 8; // 3.1-3.9v
   if (percent < 0)
     percent = 0;
   else if (percent > 100)
