@@ -9,7 +9,7 @@
 #include "string.h"
 #include "trv-state.h"
 #include "trv.h"
-
+#include "../common/gpio/gpio.hpp"
 #include "NetMsg.h"
 #include "cJSON.h"
 
@@ -55,6 +55,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
                     ESP_LOGI(TAG, "Download progress: %d%% (%lld of %lld)", percent, content_read, content_len);
                     lastPercent = percent;
                 }
+                GPIO::digitalWrite(LED_BUILTIN, !GPIO::digitalRead(LED_BUILTIN));
                 ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ota_write(update->handle, evt->data, evt->data_len));
             }
             break;
