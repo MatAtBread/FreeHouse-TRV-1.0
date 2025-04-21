@@ -76,12 +76,12 @@ extern "C" void app_main() {
   GPIO::digitalWrite(LED_BUILTIN, false);
 
   // {
-  //   ESP_LOGI(TAG, "DEBUG DELAY");
-  //   for (int i=0; i<25; i++) {
+  //   ESP_LOGI(TAG, "DEBUG DELAY START");
+  //   for (int i=0; i<50; i++) {
   //     GPIO::digitalWrite(LED_BUILTIN, i & 1);
-  //     delay(200);
+  //     delay(100);
   //   }
-  //   ESP_LOGI(TAG, "DEBUG DELAY");
+  //   ESP_LOGI(TAG, "DEBUG DELAY END");
   // }
 
   esp_err_t ret = nvs_flash_init();
