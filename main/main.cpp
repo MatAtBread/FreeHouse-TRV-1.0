@@ -34,7 +34,7 @@ bool touchButtonPressed() {
       ESP_LOGI(TAG, "Touch button pressed");
       return true;
     }
-    delay(100);
+    delay(70);
   }
 }
 
@@ -54,13 +54,11 @@ void checkForMessages(Trv *trv) {
   // }
   net->checkMessages();
   trv->checkAutoState();
-  while (WithTask::numRunning) {
-    delay(100);
-  }
+  WithTask::waitFotAllTasks();
   net->sendStateToHub(trv->getState(false));
   trv->saveState();
   delete net;
-  delay(10);
+  //delay(10);
 }
 
 static RTC_DATA_ATTR int wakeCount = 0;
@@ -96,6 +94,7 @@ extern "C" void app_main() {
 
   // ESP_LOGI(TAG,"Heap %lu",esp_get_free_heap_size());
   GPIO::digitalWrite(LED_BUILTIN, false);
+  ESP_LOGI(TAG, "Create TRV");
   Trv *trv = new Trv();
   uint32_t dreamTime;
 
@@ -108,6 +107,7 @@ extern "C" void app_main() {
       trv->resetValve();
     }
 
+    ESP_LOGI(TAG, "Check touch button/device name");
     if (!trv->deviceName()[0] || touchButtonPressed()) {
       ESP_LOGI(TAG, "Touch button pressed");
       new CaptivePortal(trv, trv->deviceName());

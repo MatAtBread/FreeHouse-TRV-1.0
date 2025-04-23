@@ -103,9 +103,8 @@ void Trv::resetValve() {
   globalState.sensors.position = 50;  // We don't know what the valve position is after a hard reset
   motor->setValvePosition(100);
   ESP_LOGI(TAG, "Reset: wait until valve opened");
-  while (motor->started) {
-    delay(1234);
-  }
+  motor->wait();
+
   // Once the valve is open, we can set the target position depending on the state
   ESP_LOGI(TAG, "Reset: valve opened, set system mode");
   setSystemMode(globalState.config.system_mode);

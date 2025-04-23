@@ -15,7 +15,7 @@ DallasOneWire::DallasOneWire(const uint8_t pin, float& temp): pin(pin), temp(tem
 }
 
 DallasOneWire::~DallasOneWire() {
-  while (started) delay(50);
+  wait();
   ESP_ERROR_CHECK_WITHOUT_ABORT(rmt_disable(ow.tx_channel));
   ESP_ERROR_CHECK_WITHOUT_ABORT(rmt_disable(ow.rx_channel));
   ESP_ERROR_CHECK_WITHOUT_ABORT(rmt_del_channel(ow.tx_channel));
@@ -23,7 +23,7 @@ DallasOneWire::~DallasOneWire() {
 }
 
 float DallasOneWire::readTemp() {
-  while (started) delay(50);
+  wait();
   return temp;
 }
 

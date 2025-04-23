@@ -109,6 +109,7 @@ static void boundTx(const uint8_t *mac_addr, esp_now_send_status_t status) {
 }
 
 EspNet::EspNet(Trv *trv) : trv(trv) {
+  ESP_LOGI(TAG, "Init EspNet");
   instance = this;
 
   // 2. Configure WiFi
@@ -128,6 +129,7 @@ EspNet::EspNet(Trv *trv) : trv(trv) {
   // 7. Register callbacks
   esp_now_register_recv_cb(boundRx);
   esp_now_register_send_cb(boundTx);
+  ESP_LOGI(TAG, "EspNet created");
 }
 
 EspNet::~EspNet() {

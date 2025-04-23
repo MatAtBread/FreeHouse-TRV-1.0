@@ -18,7 +18,7 @@ MotorController::MotorController(uint8_t pinDir, uint8_t pinSleep, BatteryMonito
 }
 
 MotorController::~MotorController() {
-  while (started) delay(50);
+  wait();
 }
 
 int MotorController::getDirection() {
