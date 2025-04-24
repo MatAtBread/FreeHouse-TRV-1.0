@@ -58,8 +58,8 @@ Trv::Trv() {
   }
 
   // Get the sensor values
-  battery = new BatteryMonitor(BATTERY, CHARGING);
   tempSensor = new DallasOneWire(DTEMP, globalState.sensors.local_temperature);
+  battery = new BatteryMonitor(BATTERY, CHARGING);
   motor = new MotorController(MOTOR, NSLEEP, battery, globalState.sensors.position);
   getState(true); // Lazily update temp
   ESP_LOGI(TAG,"Initial state: '%s' mqtt://%s:%d, wifi %s >> %s",

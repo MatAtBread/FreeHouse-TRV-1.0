@@ -10,8 +10,12 @@ extern "C" {
 }
 
 DallasOneWire::DallasOneWire(const uint8_t pin, float& temp): pin(pin), temp(temp) {
-  if (ow_init(&ow, pin))
-    StartTask(DallasOneWire);
+  if (!ow_init(&ow, pin)) {
+    ESP_LOGW(TAG, "DallasOneWire: FAILED TO INIT DS18B20");
+    return;
+  }
+
+  StartTask(DallasOneWire);
 }
 
 DallasOneWire::~DallasOneWire() {
@@ -30,13 +34,13 @@ float DallasOneWire::readTemp() {
 void DallasOneWire::task() {
   uint64_t romcode = 0ULL;
   if (!ow_reset(&ow)) {
-    ESP_LOGI(TAG, "DallasOneWire: FAILED TO RESET DS18B20");
+    ESP_LOGW(TAG, "DallasOneWire: FAILED TO RESET DS18B20");
     return;
   }
 
   ow_romsearch(&ow, &romcode, 1, OW_SEARCH_ROM);
   if (romcode == 0ULL) {
-    ESP_LOGI(TAG, "DallasOneWire: FAILED TO FIND DS18B20");
+    ESP_LOGW(TAG, "DallasOneWire: FAILED TO FIND DS18B20");
     return;
   }
 
