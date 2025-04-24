@@ -217,7 +217,7 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
     "  <input type='file' id='firmware'>"
     "  <button onclick='ota_upload(this)'>Update</button>"
     "</div>"
-    "<div>Current: " __DATE__ " " __TIME__ "</div>"
+    "<div>Current: " << versionDetail << "</div>"
     "</body></html>";
 
   httpd_resp_send(req, html.str().c_str(), HTTPD_RESP_USE_STRLEN);

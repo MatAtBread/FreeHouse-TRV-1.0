@@ -12,8 +12,6 @@
 #define MACSTR "%02X:%02X:%02X:%02X:%02X:%02X"
 #define MAC2STR(mac) mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
 
-const char *topicAndInfo = "FreeHouse:{\"model\":\"" FREEHOUSE_MODEL "\"}";
-
 typedef uint8_t MACAddr[6];
 
 const MACAddr BROADCAST_ADDR = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -174,7 +172,11 @@ void EspNet::checkMessages() {
   std::string pairName = "PAIR";
   pairName += Trv::deviceName();
   pairName += ':';
-  pairName += topicAndInfo;
+  pairName += "FreeHouse:{\"model\":\"" ;
+  pairName += FREEHOUSE_MODEL;
+  pairName += "\",\"build\":\"";
+  pairName += versionDetail;
+  pairName += "\"}";
   if (wifiChannel == 0) {
     esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_HOME_CHANNEL_CHANGE, channel_change_event, NULL);
 

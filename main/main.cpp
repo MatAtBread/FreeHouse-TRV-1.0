@@ -69,6 +69,7 @@ extern "C" void app_main() {
 
   auto wakeCause = esp_sleep_get_wakeup_cause();
   wakeCount += 1;
+  ESP_LOGI(TAG, "Build %s", versionDetail);
   ESP_LOGI(TAG, "Wake: %d reset: %d count: %d", wakeCause, esp_reset_reason(), wakeCount);
   GPIO::pinMode(LED_BUILTIN, OUTPUT);
   GPIO::digitalWrite(LED_BUILTIN, false);

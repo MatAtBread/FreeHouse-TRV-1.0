@@ -17,3 +17,4 @@
 #define LED_BUILTIN 15
 
 extern "C" const char *TAG;
+extern "C" const char *versionDetail;
