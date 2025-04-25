@@ -120,8 +120,12 @@ void Trv::resetValve() {
 const trv_state_t& Trv::getState(bool fast) {
   globalState.sensors.is_charging = battery->is_charging();
   // We don't read the temperature if we are charging, as the MCU is hot
-  if (!fast && !globalState.sensors.is_charging) {
-    globalState.sensors.local_temperature = tempSensor->readTemp() + globalState.config.local_temperature_calibration;
+  if (!fast) {
+    float compensation = 0.0;
+    if (globalState.sensors.is_charging) {
+      compensation = 1.0; // TODO: calibrate this value from the MCU temperature
+    }
+    globalState.sensors.local_temperature = tempSensor->readTemp() + globalState.config.local_temperature_calibration + compensation;
   }
 
   globalState.sensors.position = motor->getValvePosition();

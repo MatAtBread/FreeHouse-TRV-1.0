@@ -5,7 +5,7 @@
 #include "soc/apb_saradc_struct.h"
 #include "soc/apb_saradc_reg.h"
 
-//#include "hal\temperature_sensor_ll.h"
+#include "hal\temperature_sensor_ll.h"
 
 #include "../trv.h"
 
@@ -19,13 +19,20 @@ void mcu_temp_init() {
 }
 
 float mcu_temp_read() {
+  extern int16_t temp_sensor_get_raw_value(bool *range_changed);
+
   // Enable temperature sensor
   ESP_ERROR_CHECK(temperature_sensor_enable(temp_handle));
-  uint32_t v = HAL_FORCE_READ_U32_REG_FIELD(APB_SARADC.saradc_apb_tsens_ctrl, saradc_tsens_out);
+  bool range_changed;
+  int v = temp_sensor_get_raw_value(&range_changed); // in temperature_sensor.c
 
-  // Get converted sensor data
+  // Read the raw value from the temperature sensor
+  //uint32_t v = HAL_FORCE_READ_U32_REG_FIELD(APB_SARADC.saradc_apb_tsens_ctrl, saradc_tsens_out);
+
+  // Read the calibrated value from the temperature sensor
   //float tsens_out;
   // ESP_ERROR_CHECK(temperature_sensor_get_celsius(temp_handle, &tsens_out));
+
   // Disable the temperature sensor if it is not needed and save the power
   ESP_ERROR_CHECK(temperature_sensor_disable(temp_handle));
   //return tsens_out;

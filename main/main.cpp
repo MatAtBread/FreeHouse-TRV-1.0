@@ -65,6 +65,7 @@ static RTC_DATA_ATTR int wakeCount = 0;
 
 extern "C" void app_main() {
   // esp_log_level_set("*", ESP_LOG_WARN);
+  esp_log_level_set("temperature_sensor", ESP_LOG_VERBOSE);
   esp_log_level_set(TAG, ESP_LOG_VERBOSE);
 
   auto wakeCause = esp_sleep_get_wakeup_cause();
