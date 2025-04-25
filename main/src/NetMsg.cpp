@@ -150,7 +150,7 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
     for (esp_zb_zcl_thermostat_system_mode_t mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF;
          mode <= ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP;
          mode = (esp_zb_zcl_thermostat_system_mode_t)(mode + 1)) {
-      if (!strcmp(systemModes[mode], system_mode->valuestring)) {
+      if (!strcasecmp(systemModes[mode], system_mode->valuestring)) {
         ESP_LOGI(TAG, "system_mode %s (%d)\n", system_mode->valuestring, mode);
         trv->setSystemMode(mode);
       }

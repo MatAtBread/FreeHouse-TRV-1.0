@@ -30,16 +30,16 @@ CaptivePortal::CaptivePortal(Trv* trv, const char *name) : trv(trv) {
 
 static const char *netModes [] = {"esp-now", "wifi-mqtt", "ZigBee"};
 const char *systemModes[] = {
-    "OFF",
-    "AUTO",
+    "off",
+    "auto",
     "",
     "",
-    "HEAT",
+    "heat",
     "",
     "",
     "",
     "",
-    "SLEEP"
+    "sleep"
 };
 
 const char accessPointName[] = "FreeHouse-TRV";
@@ -79,7 +79,7 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
   bool isEspNow = startsWith(url, "/net-esp/");
 
   // Check the URLs to manage the TRV
-  if (startsWith(url, "/mode-on")) {
+  if (startsWith(url, "/mode-heat")) {
     trv->setSystemMode(ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT);
   } else if (startsWith(url, "/mode-auto")) {
     trv->setSystemMode(ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO);
@@ -186,7 +186,7 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
     "</head>\n"
     "<body>\n"
     "<h1>FreeHouse-TRV</h1>\n"
-    "<input onclick='window.location.href = \"/mode-on\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT ? checked : "") << "/>On\n"
+    "<input onclick='window.location.href = \"/mode-heat\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT ? checked : "") << "/>Heat\n"
     "<input onclick='window.location.href = \"/mode-auto\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO ? checked : "") << "/>Auto\n"
     "<input onclick='window.location.href = \"/mode-off\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF ? checked : "") << "/>Off\n"
     "<input onclick='window.location.href = \"/mode-sleep\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP ? checked : "") << "/>Sleep\n"
