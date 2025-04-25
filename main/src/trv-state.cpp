@@ -4,6 +4,7 @@
 #include <sstream>
 
 #include "trv-state.h"
+//#include "mcu_temp.h"
 
 #define MOTOR 17     // D7
 #define NSLEEP 19    // D8
@@ -77,8 +78,14 @@ Trv::~Trv() {
 }
 
 std::string Trv::asJson(const trv_state_t& s) {
+  // mcu_temp_init();
+  // auto mcu_temp = mcu_temp_read();
+  // mcu_temp_deinit();
+  // ESP_LOGI(TAG, "MCU temp: %f", mcu_temp);
+
   std::stringstream json;
   json << "{"
+    // "\"mcu_temperature\":" << mcu_temp << ","
     "\"local_temperature\":" << s.sensors.local_temperature << ","
     "\"batteryPercent\":" << (int)s.sensors.batteryPercent << ","
     "\"battery_mv\":" << (int)s.sensors.batteryRaw << ","
@@ -111,10 +118,12 @@ void Trv::resetValve() {
 }
 
 const trv_state_t& Trv::getState(bool fast) {
-  if (!fast) {
+  globalState.sensors.is_charging = battery->is_charging();
+  // We don't read the temperature if we are charging, as the MCU is hot
+  if (!fast && !globalState.sensors.is_charging) {
     globalState.sensors.local_temperature = tempSensor->readTemp() + globalState.config.local_temperature_calibration;
   }
-  globalState.sensors.is_charging = battery->is_charging();
+
   globalState.sensors.position = motor->getValvePosition();
   // We only update battery values when the motor is off. If it's moving, it will drop due to the loading
   if (motor->getDirection() == 0) {

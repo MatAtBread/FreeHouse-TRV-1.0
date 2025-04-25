@@ -16,5 +16,13 @@
 #undef LED_BUILTIN
 #define LED_BUILTIN 15
 
-extern "C" const char *TAG;
-extern "C" const char *versionDetail;
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+extern const char *TAG;
+extern const char *versionDetail;
+
+#ifdef __cplusplus
+}
+#endif
