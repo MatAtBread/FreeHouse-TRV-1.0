@@ -4,7 +4,7 @@
 #include <sstream>
 
 #include "trv-state.h"
-//#include "mcu_temp.h"
+#include "mcu_temp.h"
 
 #define MOTOR 17     // D7
 #define NSLEEP 19    // D8
@@ -78,14 +78,14 @@ Trv::~Trv() {
 }
 
 std::string Trv::asJson(const trv_state_t& s) {
-  // mcu_temp_init();
-  // auto mcu_temp = mcu_temp_read();
-  // mcu_temp_deinit();
-  // ESP_LOGI(TAG, "MCU temp: %f", mcu_temp);
+  mcu_temp_init();
+  auto mcu_temp = mcu_temp_read();
+  mcu_temp_deinit();
+  ESP_LOGI(TAG, "MCU temp: %f", mcu_temp);
 
   std::stringstream json;
   json << "{"
-    // "\"mcu_temperature\":" << mcu_temp << ","
+    "\"mcu_temperature\":" << mcu_temp << ","
     "\"local_temperature\":" << s.sensors.local_temperature << ","
     "\"batteryPercent\":" << (int)s.sensors.batteryPercent << ","
     "\"battery_mv\":" << (int)s.sensors.batteryRaw << ","
