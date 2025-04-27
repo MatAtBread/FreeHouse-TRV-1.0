@@ -1,11 +1,11 @@
 #include "esp_log.h"
 #include "driver/temperature_sensor.h"
 
-#include "hal\misc.h"
+#include "hal/misc.h"
 #include "soc/apb_saradc_struct.h"
 #include "soc/apb_saradc_reg.h"
 
-#include "hal\temperature_sensor_ll.h"
+#include "hal/temperature_sensor_ll.h"
 
 #include "../trv.h"
 
