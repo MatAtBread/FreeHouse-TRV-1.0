@@ -193,7 +193,7 @@ void Trv::checkAutoState() {
   if (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO) {
     if (state.sensors.local_temperature > state.config.current_heating_setpoint + 0.5) {
       motor->setValvePosition(0);
-    } else if (state.sensors.local_temperature < state.config.current_heating_setpoint) {
+    } else if (state.sensors.local_temperature < state.config.current_heating_setpoint - 0.5) {
       motor->setValvePosition(100);
     }
   }
