@@ -121,7 +121,7 @@ extern "C" void app_main() {
       dreamTime = 1;
     } else {
       checkForMessages(trv);
-      dreamTime = 15 * 1000000UL;  // 15 seconds
+      dreamTime = 20 * 1000000UL;  // 20 seconds
     }
   }
 
