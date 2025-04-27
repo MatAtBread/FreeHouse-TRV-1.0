@@ -152,6 +152,7 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
          mode = (esp_zb_zcl_thermostat_system_mode_t)(mode + 1)) {
       if (!strcasecmp(systemModes[mode], system_mode->valuestring)) {
         ESP_LOGI(TAG, "system_mode %s (%d)\n", system_mode->valuestring, mode);
+        messageCount++;
         trv->setSystemMode(mode);
       }
     }
@@ -159,11 +160,13 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
 
   if (cJSON_IsNumber(current_heating_setpoint)) {
     ESP_LOGI(TAG, "current_heating_setpoint %f\n", current_heating_setpoint->valuedouble);
+    messageCount++;
     trv->setHeatingSetpoint((float)current_heating_setpoint->valuedouble);
   }
 
   if (cJSON_IsNumber(local_temperature_calibration)) {
     ESP_LOGI(TAG, "local_temperature_calibration %f\n", local_temperature_calibration->valuedouble);
+    messageCount++;
     trv->setTempCalibration((float)local_temperature_calibration->valuedouble);
   }
 

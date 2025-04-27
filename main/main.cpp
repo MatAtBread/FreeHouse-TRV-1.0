@@ -38,6 +38,7 @@ bool touchButtonPressed() {
   }
 }
 
+static RTC_DATA_ATTR int messgageChecks = 0;
 void checkForMessages(Trv *trv) {
 
   // Create `net` based on config
@@ -53,7 +54,21 @@ void checkForMessages(Trv *trv) {
   //   break;
   // }
   net->checkMessages();
-  trv->checkAutoState();
+  // Note, if there were any messages that confifgured the heat settings, checkAutoState wuill have been called as part of their processing.
+  // So here, we only need to check the auto state for temperature changes. We do this every 4th time to avoid excessive checking and the valve
+  // moving too often, and to give the device temperature time to settle after a change (which drives up the internal temperature and causes resonance)
+  ESP_LOGI(TAG, "checkForMessages %d", messgageChecks);
+  if (net->getMessageCount() == 0) {
+    if (messgageChecks > 3) {
+      trv->checkAutoState();
+      messgageChecks = 0;
+    } else {
+      messgageChecks += 1;
+    }
+  } else {
+    // We defer checking the auto state if we received messages as they will have called checkAutoState()
+    messgageChecks = 0;
+  }
   WithTask::waitFotAllTasks();
   net->sendStateToHub(trv->getState(false));
   trv->saveState();
