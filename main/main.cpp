@@ -5,7 +5,6 @@
 
 #include "esp_sleep.h"
 #include "hal/uart_types.h"
-#include "driver/uart.h"
 #include "esp_netif.h"
 #include "esp_pm.h"
 #include "nvs_flash.h"
@@ -79,14 +78,12 @@ void checkForMessages(Trv *trv) {
 static RTC_DATA_ATTR int wakeCount = 0;
 
 extern "C" void app_main() {
-  // esp_log_level_set("*", ESP_LOG_WARN);
-  esp_log_level_set("temperature_sensor", ESP_LOG_VERBOSE);
+  esp_log_level_set("*", ESP_LOG_WARN);
   esp_log_level_set(TAG, ESP_LOG_VERBOSE);
 
   auto wakeCause = esp_sleep_get_wakeup_cause();
+  auto resetCause = esp_reset_reason();
   wakeCount += 1;
-  ESP_LOGI(TAG, "Build %s", versionDetail);
-  ESP_LOGI(TAG, "Wake: %d reset: %d count: %d", wakeCause, esp_reset_reason(), wakeCount);
   GPIO::pinMode(LED_BUILTIN, OUTPUT);
   GPIO::digitalWrite(LED_BUILTIN, false);
 
@@ -98,6 +95,9 @@ extern "C" void app_main() {
   //   }
   //   ESP_LOGI(TAG, "DEBUG DELAY END");
   // }
+
+  ESP_LOGI(TAG, "Build %s", versionDetail);
+  ESP_LOGI(TAG, "Wake: %d reset: %d count: %d", wakeCause, resetCause, wakeCount);
 
   esp_err_t ret = nvs_flash_init();
   if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -119,8 +119,8 @@ extern "C" void app_main() {
     ESP_LOGI(TAG, "Battery exhausted");
     dreamTime = 60 * 60 * 1000000UL;  // 1 hour
   } else {
-    if (wakeCause == ESP_SLEEP_WAKEUP_UNDEFINED) {
-      wakeCause = ESP_SLEEP_WAKEUP_ALL;  // To suppress further reset in no-sleep mode
+    if (resetCause != ESP_RST_DEEPSLEEP) {
+      resetCause = ESP_RST_DEEPSLEEP;  // To suppress further reset in no-sleep mode
       trv->resetValve();
     }
 
@@ -141,7 +141,14 @@ extern "C" void app_main() {
   }
 
   delete trv;
+
+  // Prepare to sleep. Wake on touch or timeout
   GPIO::digitalWrite(LED_BUILTIN, true);
+  GPIO::pinMode(TOUCH_PIN, INPUT);
+
+  esp_sleep_enable_ext1_wakeup(1ULL << TOUCH_PIN, ESP_EXT1_WAKEUP_ANY_HIGH);
+  esp_sleep_enable_timer_wakeup(dreamTime);
   ESP_LOGI(TAG, "%s %lu", "deep sleep", dreamTime);
-  esp_deep_sleep(dreamTime);
+
+  esp_deep_sleep_start();
 }
