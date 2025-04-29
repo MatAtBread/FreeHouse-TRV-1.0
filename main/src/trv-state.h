@@ -38,8 +38,8 @@ typedef struct trv_state_s
   struct {
     // Read only
     float local_temperature;
-    uint32_t batteryRaw;
-    uint8_t batteryPercent;
+    uint32_t battery_raw;
+    uint8_t battery_percent;
     uint8_t is_charging;
     uint8_t position;
   } sensors;

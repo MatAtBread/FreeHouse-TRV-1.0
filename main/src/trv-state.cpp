@@ -20,8 +20,8 @@ static RTC_DATA_ATTR trv_state_t globalState = {
   .version = STATE_VERSION,
   .sensors = {
     .local_temperature = 20.0,
-    .batteryRaw = 3500,
-    .batteryPercent = 50,
+    .battery_raw = 3500,
+    .battery_percent = 50,
     .is_charging = 0,
     .position = 100,
   },
@@ -87,8 +87,8 @@ std::string Trv::asJson(const trv_state_t& s) {
   json << "{"
     "\"mcu_temperature\":" << mcu_temp << ","
     "\"local_temperature\":" << s.sensors.local_temperature << ","
-    "\"batteryPercent\":" << (int)s.sensors.batteryPercent << ","
-    "\"battery_mv\":" << (int)s.sensors.batteryRaw << ","
+    "\"battery_percent\":" << (int)s.sensors.battery_percent << ","
+    "\"battery_mv\":" << (int)s.sensors.battery_raw << ","
     "\"is_charging\":" << (s.sensors.is_charging ? "true" : "false") << ","
     "\"position\":" << (int)s.sensors.position << ","
     "\"current_heating_setpoint\":" << s.config.current_heating_setpoint << ","
@@ -131,8 +131,8 @@ const trv_state_t& Trv::getState(bool fast) {
   globalState.sensors.position = motor->getValvePosition();
   // We only update battery values when the motor is off. If it's moving, it will drop due to the loading
   if (motor->getDirection() == 0) {
-    globalState.sensors.batteryRaw = battery->getValue();
-    globalState.sensors.batteryPercent = battery->getPercent(globalState.sensors.batteryRaw);
+    globalState.sensors.battery_raw = battery->getValue();
+    globalState.sensors.battery_percent = battery->getPercent(globalState.sensors.battery_raw);
   }
 
   return globalState;
