@@ -32,6 +32,10 @@ uint8_t BatteryMonitor::getPercent(int raw) {
     return 50;
   }
 
+  if (is_charging()) {
+    raw -= 150; // 0.15v is a typical charge bias voltage for CC charge circuit
+  }
+
   auto percent = (raw - 3100) / 8; // 3.1-3.9v
   if (percent < 0)
     percent = 0;
