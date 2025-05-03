@@ -30,16 +30,16 @@ CaptivePortal::CaptivePortal(Trv* trv, const char *name) : trv(trv) {
 
 static const char *netModes [] = {"esp-now", "wifi-mqtt", "ZigBee"};
 const char *systemModes[] = {
-    "OFF",
-    "AUTO",
+    "off",
+    "auto",
     "",
     "",
-    "HEAT",
+    "heat",
     "",
     "",
     "",
     "",
-    "SLEEP"
+    "sleep"
 };
 
 const char accessPointName[] = "FreeHouse-TRV";
@@ -79,7 +79,7 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
   bool isEspNow = startsWith(url, "/net-esp/");
 
   // Check the URLs to manage the TRV
-  if (startsWith(url, "/mode-on")) {
+  if (startsWith(url, "/mode-heat")) {
     trv->setSystemMode(ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT);
   } else if (startsWith(url, "/mode-auto")) {
     trv->setSystemMode(ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO);
@@ -186,15 +186,15 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
     "</head>\n"
     "<body>\n"
     "<h1>FreeHouse-TRV</h1>\n"
-    "<input onclick='window.location.href = \"/mode-on\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT ? checked : "") << "/>On\n"
+    "<input onclick='window.location.href = \"/mode-heat\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT ? checked : "") << "/>Heat\n"
     "<input onclick='window.location.href = \"/mode-auto\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO ? checked : "") << "/>Auto\n"
     "<input onclick='window.location.href = \"/mode-off\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF ? checked : "") << "/>Off\n"
     "<input onclick='window.location.href = \"/mode-sleep\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP ? checked : "") << "/>Sleep\n"
     "<table>\n"
     "<tr><td>syetem mode</td><td>" << systemModes[state.config.system_mode] << '(' << state.config.system_mode << ")</td></tr>\n"
     "<tr><td>local_temperature</td><td>" << state.sensors.local_temperature << " C</td></tr>\n"
-    "<tr><td>battery (raw)</td><td>" << state.sensors.batteryRaw << "mV</td></tr>\n"
-    "<tr><td>battery %</td><td>" << (int)state.sensors.batteryPercent << "%</td></tr>\n"
+    "<tr><td>battery (raw)</td><td>" << state.sensors.battery_raw << "mV</td></tr>\n"
+    "<tr><td>battery %</td><td>" << (int)state.sensors.battery_percent << "%</td></tr>\n"
     "<tr><td>power source</td><td>" << (state.sensors.is_charging ? "charging" : "battery power") << "</td></tr>\n"
     "<tr><td>valve</td><td>" << (int)state.sensors.position << "</td></tr>\n"
     "<tr><td>heating setpoint</td><td>\n"
@@ -217,7 +217,7 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
     "  <input type='file' id='firmware'>"
     "  <button onclick='ota_upload(this)'>Update</button>"
     "</div>"
-    "<div>Current: " __DATE__ " " __TIME__ "</div>"
+    "<div>Current: " << versionDetail << "</div>"
     "</body></html>";
 
   httpd_resp_send(req, html.str().c_str(), HTTPD_RESP_USE_STRLEN);

@@ -4,6 +4,7 @@
 #include <sstream>
 
 #include "trv-state.h"
+#include "mcu_temp.h"
 
 #define MOTOR 17     // D7
 #define NSLEEP 19    // D8
@@ -19,8 +20,8 @@ static RTC_DATA_ATTR trv_state_t globalState = {
   .version = STATE_VERSION,
   .sensors = {
     .local_temperature = 20.0,
-    .batteryRaw = 3500,
-    .batteryPercent = 50,
+    .battery_raw = 3500,
+    .battery_percent = 50,
     .is_charging = 0,
     .position = 100,
   },
@@ -58,8 +59,8 @@ Trv::Trv() {
   }
 
   // Get the sensor values
-  battery = new BatteryMonitor(BATTERY, CHARGING);
   tempSensor = new DallasOneWire(DTEMP, globalState.sensors.local_temperature);
+  battery = new BatteryMonitor(BATTERY, CHARGING);
   motor = new MotorController(MOTOR, NSLEEP, battery, globalState.sensors.position);
   getState(true); // Lazily update temp
   ESP_LOGI(TAG,"Initial state: '%s' mqtt://%s:%d, wifi %s >> %s",
@@ -77,11 +78,17 @@ Trv::~Trv() {
 }
 
 std::string Trv::asJson(const trv_state_t& s) {
+  mcu_temp_init();
+  auto mcu_temp = mcu_temp_read();
+  mcu_temp_deinit();
+  ESP_LOGI(TAG, "MCU temp: %f", mcu_temp);
+
   std::stringstream json;
   json << "{"
+    "\"mcu_temperature\":" << mcu_temp << ","
     "\"local_temperature\":" << s.sensors.local_temperature << ","
-    "\"batteryPercent\":" << (int)s.sensors.batteryPercent << ","
-    "\"battery_mv\":" << (int)s.sensors.batteryRaw << ","
+    "\"battery_percent\":" << (int)s.sensors.battery_percent << ","
+    "\"battery_mv\":" << (int)s.sensors.battery_raw << ","
     "\"is_charging\":" << (s.sensors.is_charging ? "true" : "false") << ","
     "\"position\":" << (int)s.sensors.position << ","
     "\"current_heating_setpoint\":" << s.config.current_heating_setpoint << ","
@@ -103,24 +110,29 @@ void Trv::resetValve() {
   globalState.sensors.position = 50;  // We don't know what the valve position is after a hard reset
   motor->setValvePosition(100);
   ESP_LOGI(TAG, "Reset: wait until valve opened");
-  while (motor->started) {
-    delay(1234);
-  }
+  motor->wait();
+
   // Once the valve is open, we can set the target position depending on the state
   ESP_LOGI(TAG, "Reset: valve opened, set system mode");
   setSystemMode(globalState.config.system_mode);
 }
 
 const trv_state_t& Trv::getState(bool fast) {
-  if (!fast) {
-    globalState.sensors.local_temperature = tempSensor->readTemp() + globalState.config.local_temperature_calibration;
-  }
   globalState.sensors.is_charging = battery->is_charging();
+  // We don't read the temperature if we are charging, as the MCU is hot
+  if (!fast) {
+    float compensation = 0.0;
+    if (globalState.sensors.is_charging) {
+      compensation = 1.0; // TODO: calibrate this value from the MCU temperature
+    }
+    globalState.sensors.local_temperature = tempSensor->readTemp() + globalState.config.local_temperature_calibration + compensation;
+  }
+
   globalState.sensors.position = motor->getValvePosition();
   // We only update battery values when the motor is off. If it's moving, it will drop due to the loading
   if (motor->getDirection() == 0) {
-    globalState.sensors.batteryRaw = battery->getValue();
-    globalState.sensors.batteryPercent = battery->getPercent(globalState.sensors.batteryRaw);
+    globalState.sensors.battery_raw = battery->getValue();
+    globalState.sensors.battery_percent = battery->getPercent(globalState.sensors.battery_raw);
   }
 
   return globalState;
@@ -181,7 +193,7 @@ void Trv::checkAutoState() {
   if (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO) {
     if (state.sensors.local_temperature > state.config.current_heating_setpoint + 0.5) {
       motor->setValvePosition(0);
-    } else if (state.sensors.local_temperature < state.config.current_heating_setpoint) {
+    } else if (state.sensors.local_temperature < state.config.current_heating_setpoint - 0.5) {
       motor->setValvePosition(100);
     }
   }

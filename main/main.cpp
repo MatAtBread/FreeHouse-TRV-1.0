@@ -5,7 +5,6 @@
 
 #include "esp_sleep.h"
 #include "hal/uart_types.h"
-#include "driver/uart.h"
 #include "esp_netif.h"
 #include "esp_pm.h"
 #include "nvs_flash.h"
@@ -34,10 +33,11 @@ bool touchButtonPressed() {
       ESP_LOGI(TAG, "Touch button pressed");
       return true;
     }
-    delay(100);
+    delay(70);
   }
 }
 
+static RTC_DATA_ATTR int messgageChecks = 0;
 void checkForMessages(Trv *trv) {
 
   // Create `net` based on config
@@ -53,36 +53,51 @@ void checkForMessages(Trv *trv) {
   //   break;
   // }
   net->checkMessages();
-  trv->checkAutoState();
-  while (WithTask::numRunning) {
-    delay(100);
+  // Note, if there were any messages that confifgured the heat settings, checkAutoState wuill have been called as part of their processing.
+  // So here, we only need to check the auto state for temperature changes. We do this every 4th time to avoid excessive checking and the valve
+  // moving too often, and to give the device temperature time to settle after a change (which drives up the internal temperature and causes resonance)
+  ESP_LOGI(TAG, "checkForMessages %d", messgageChecks);
+  if (net->getMessageCount() == 0) {
+    if (messgageChecks > 3) {
+      trv->checkAutoState();
+      messgageChecks = 0;
+    } else {
+      messgageChecks += 1;
+    }
+  } else {
+    // We defer checking the auto state if we received messages as they will have called checkAutoState()
+    messgageChecks = 0;
   }
+  WithTask::waitFotAllTasks();
   net->sendStateToHub(trv->getState(false));
   trv->saveState();
   delete net;
-  delay(10);
+  //delay(10);
 }
 
 static RTC_DATA_ATTR int wakeCount = 0;
 
 extern "C" void app_main() {
-  // esp_log_level_set("*", ESP_LOG_WARN);
+  esp_log_level_set("*", ESP_LOG_WARN);
   esp_log_level_set(TAG, ESP_LOG_VERBOSE);
 
   auto wakeCause = esp_sleep_get_wakeup_cause();
+  auto resetCause = esp_reset_reason();
   wakeCount += 1;
-  ESP_LOGI(TAG, "Wake: %d reset: %d count: %d", wakeCause, esp_reset_reason(), wakeCount);
   GPIO::pinMode(LED_BUILTIN, OUTPUT);
   GPIO::digitalWrite(LED_BUILTIN, false);
 
   // {
-  //   ESP_LOGI(TAG, "DEBUG DELAY");
-  //   for (int i=0; i<25; i++) {
+  //   ESP_LOGI(TAG, "DEBUG DELAY START");
+  //   for (int i=0; i<50; i++) {
   //     GPIO::digitalWrite(LED_BUILTIN, i & 1);
-  //     delay(200);
+  //     delay(100);
   //   }
-  //   ESP_LOGI(TAG, "DEBUG DELAY");
+  //   ESP_LOGI(TAG, "DEBUG DELAY END");
   // }
+
+  ESP_LOGI(TAG, "Build %s", versionDetail);
+  ESP_LOGI(TAG, "Wake: %d reset: %d count: %d", wakeCause, resetCause, wakeCount);
 
   esp_err_t ret = nvs_flash_init();
   if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -96,6 +111,7 @@ extern "C" void app_main() {
 
   // ESP_LOGI(TAG,"Heap %lu",esp_get_free_heap_size());
   GPIO::digitalWrite(LED_BUILTIN, false);
+  ESP_LOGI(TAG, "Create TRV");
   Trv *trv = new Trv();
   uint32_t dreamTime;
 
@@ -103,11 +119,12 @@ extern "C" void app_main() {
     ESP_LOGI(TAG, "Battery exhausted");
     dreamTime = 60 * 60 * 1000000UL;  // 1 hour
   } else {
-    if (wakeCause == ESP_SLEEP_WAKEUP_UNDEFINED) {
-      wakeCause = ESP_SLEEP_WAKEUP_ALL;  // To suppress further reset in no-sleep mode
+    if (resetCause != ESP_RST_DEEPSLEEP) {
+      resetCause = ESP_RST_DEEPSLEEP;  // To suppress further reset in no-sleep mode
       trv->resetValve();
     }
 
+    ESP_LOGI(TAG, "Check touch button/device name");
     if (!trv->deviceName()[0] || touchButtonPressed()) {
       ESP_LOGI(TAG, "Touch button pressed");
       new CaptivePortal(trv, trv->deviceName());
@@ -119,12 +136,19 @@ extern "C" void app_main() {
       dreamTime = 1;
     } else {
       checkForMessages(trv);
-      dreamTime = 15 * 1000000UL;  // 15 seconds
+      dreamTime = 20 * 1000000UL;  // 20 seconds
     }
   }
 
   delete trv;
+
+  // Prepare to sleep. Wake on touch or timeout
   GPIO::digitalWrite(LED_BUILTIN, true);
+  GPIO::pinMode(TOUCH_PIN, INPUT);
+
+  esp_sleep_enable_ext1_wakeup(1ULL << TOUCH_PIN, ESP_EXT1_WAKEUP_ANY_HIGH);
+  esp_sleep_enable_timer_wakeup(dreamTime);
   ESP_LOGI(TAG, "%s %lu", "deep sleep", dreamTime);
-  esp_deep_sleep(dreamTime);
+
+  esp_deep_sleep_start();
 }
