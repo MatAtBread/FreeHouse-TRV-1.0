@@ -81,10 +81,8 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 }
 
 class SoftWatchDog: public WithTask {
-  private:
-    int seconds;
-
   public:
+  int seconds;
   bool cancel;
   SoftWatchDog(int seconds): seconds(seconds) {
     StartTask(SoftWatchDog);
@@ -94,8 +92,10 @@ class SoftWatchDog: public WithTask {
     wait();
   }
   void task() {
-    while (seconds-- && !cancel)
+    while (seconds-- && !cancel) {
+      ESP_LOGI(TAG, "SoftWatchDog %d %d", seconds, cancel);
       vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
     if (!cancel && seconds <= 0) {
       ESP_LOGW(TAG, "SoftWatchDog restart!");
       vTaskDelay(100 / portTICK_PERIOD_MS);
@@ -130,7 +130,8 @@ NetMsg::~NetMsg() {
 
     if (otaUrlStr.starts_with("http://")) {
       // Get OTA partition
-      SoftWatchDog woof(150); // Max 2.5 mins to update
+//      SoftWatchDog *woof = new SoftWatchDog(150); // Max 2.5 mins to update
+      SoftWatchDog woof(150);
       const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
       esp_ota_handle_t update_handle = 0;
       ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &update_handle));
@@ -147,6 +148,8 @@ NetMsg::~NetMsg() {
           ESP_LOGE(TAG, "HTTP GET request failed: %s", esp_err_to_name(err));
       }
       esp_http_client_cleanup(client);
+
+      ESP_LOGI(TAG, "Woof %d", woof.seconds);
     } else {
       esp_https_ota_config_t ota_config = {
           .http_config = &config,

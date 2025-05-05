@@ -193,6 +193,7 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
     "<table>\n"
     "<tr><td>syetem mode</td><td>" << systemModes[state.config.system_mode] << '(' << state.config.system_mode << ")</td></tr>\n"
     "<tr><td>local_temperature</td><td>" << state.sensors.local_temperature << " C</td></tr>\n"
+    "<tr><td>sensor_temperature</td><td>" << state.sensors.sensor_temperature << " C</td></tr>\n"
     "<tr><td>battery (raw)</td><td>" << state.sensors.battery_raw << "mV</td></tr>\n"
     "<tr><td>battery %</td><td>" << (int)state.sensors.battery_percent << "%</td></tr>\n"
     "<tr><td>power source</td><td>" << (state.sensors.is_charging ? "charging" : "battery power") << "</td></tr>\n"

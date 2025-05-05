@@ -12,7 +12,7 @@
 #define DTEMP 18     // D10
 #define BATTERY 0    // A0
 
-#define STATE_VERSION 1
+#define STATE_VERSION 2
 
 extern const char *systemModes[];
 
@@ -20,6 +20,7 @@ static RTC_DATA_ATTR trv_state_t globalState = {
   .version = STATE_VERSION,
   .sensors = {
     .local_temperature = 20.0,
+    .sensor_temperature = 20.0,
     .battery_raw = 3500,
     .battery_percent = 50,
     .is_charging = 0,
@@ -55,11 +56,47 @@ Trv::Trv() {
     globalState.config.local_temperature_calibration = 0.0;
     globalState.config.current_heating_setpoint = 21;
   } else {
+    switch (state.version) {
+      case 1: {
+        struct trv_state_s_1
+        {
+          uint32_t version; // 1
+          struct {
+            // Read only
+            float local_temperature;
+            uint32_t battery_raw;
+            uint8_t battery_percent;
+            uint8_t is_charging;
+            uint8_t position;
+          } sensors;
+          struct {
+            // Write (read is possible, but never modified by the system)
+            float current_heating_setpoint;
+            float local_temperature_calibration;
+            esp_zb_zcl_thermostat_system_mode_t system_mode; // ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF/AUTO/HEAT/SLEEP
+            net_mode_t netMode; // NET_MODE_ESP_NOW expects mqttConfig to contain WIFI settings, NET_MODE_MQTT expects WIFI & NET_MODE_MQTT settings, NET_MODE_ZIGBEE expects no config
+            trv_mqtt_t mqttConfig;
+          } config;
+        } *s = (struct trv_state_s_1 *)((void *)&state);
+        state.version = 2;
+        state.sensors.local_temperature = s->sensors.local_temperature;
+        state.sensors.battery_raw = s->sensors.battery_raw;
+        state.sensors.battery_percent = s->sensors.battery_percent;
+        state.sensors.is_charging = s->sensors.is_charging;
+        state.sensors.position = s->sensors.position;
+        state.config.current_heating_setpoint = s->config.current_heating_setpoint;
+        state.config.local_temperature_calibration = s->config.local_temperature_calibration;
+        state.config.system_mode = s->config.system_mode;
+        state.config.netMode = s->config.netMode;
+        state.config.mqttConfig = s->config.mqttConfig;
+      }
+      break;
+    }
     globalState.config = state.config;
   }
 
   // Get the sensor values
-  tempSensor = new DallasOneWire(DTEMP, globalState.sensors.local_temperature);
+  tempSensor = new DallasOneWire(DTEMP, globalState.sensors.sensor_temperature);
   battery = new BatteryMonitor(BATTERY, CHARGING);
   motor = new MotorController(MOTOR, NSLEEP, battery, globalState.sensors.position);
   getState(true); // Lazily update temp
@@ -87,6 +124,7 @@ std::string Trv::asJson(const trv_state_t& s) {
   json << "{"
     "\"mcu_temperature\":" << mcu_temp << ","
     "\"local_temperature\":" << s.sensors.local_temperature << ","
+    "\"sensor_temperature\":" << s.sensors.sensor_temperature << ","
     "\"battery_percent\":" << (int)s.sensors.battery_percent << ","
     "\"battery_mv\":" << (int)s.sensors.battery_raw << ","
     "\"is_charging\":" << (s.sensors.is_charging ? "true" : "false") << ","
@@ -125,7 +163,10 @@ const trv_state_t& Trv::getState(bool fast) {
     if (globalState.sensors.is_charging) {
       compensation = 1.0; // TODO: calibrate this value from the MCU temperature
     }
-    globalState.sensors.local_temperature = tempSensor->readTemp() + globalState.config.local_temperature_calibration + compensation;
+
+    // We choose to keep a running average the temp to minimize the heating effect of operating
+    auto local = tempSensor->readTemp() + globalState.config.local_temperature_calibration + compensation;
+    globalState.sensors.local_temperature = (local + globalState.sensors.local_temperature) / 2;
   }
 
   globalState.sensors.position = motor->getValvePosition();
@@ -191,7 +232,7 @@ void Trv::setSystemMode(esp_zb_zcl_thermostat_system_mode_t mode) {
 void Trv::checkAutoState() {
   auto state = getState(true);
   if (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO) {
-    if (state.sensors.local_temperature > state.config.current_heating_setpoint + 0.5) {
+    if (state.sensors.local_temperature > state.config.current_heating_setpoint) {
       motor->setValvePosition(0);
     } else if (state.sensors.local_temperature < state.config.current_heating_setpoint - 0.5) {
       motor->setValvePosition(100);

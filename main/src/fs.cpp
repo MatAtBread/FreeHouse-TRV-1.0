@@ -16,8 +16,8 @@ bool TrvFS::read(const char *name, void *p, __SIZE_TYPE__ size) {
   nvs_handle_t nvs_handle = 0;
   __SIZE_TYPE__ len = size;
   auto failed = nvs_open("storage", NVS_READONLY, &nvs_handle) != ESP_OK
-    || nvs_get_blob(nvs_handle, "trv1", p, &len) != ESP_OK
-    || len != size;
+    || nvs_get_blob(nvs_handle, "trv1", p, &len) != ESP_OK;
+//    || len != size; // We allow mis-sized for versioning
   if (nvs_handle) nvs_close(nvs_handle);
   return !failed;
 }
