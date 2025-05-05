@@ -80,6 +80,30 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
+class SoftWatchDog: public WithTask {
+  private:
+    int seconds;
+
+  public:
+  bool cancel;
+  SoftWatchDog(int seconds): seconds(seconds) {
+    StartTask(SoftWatchDog);
+  }
+  ~SoftWatchDog() {
+    cancel = true;
+    wait();
+  }
+  void task() {
+    while (seconds-- && !cancel)
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
+    if (!cancel && seconds <= 0) {
+      ESP_LOGW(TAG, "SoftWatchDog restart!");
+      vTaskDelay(100 / portTICK_PERIOD_MS);
+      esp_restart();
+    }
+  }
+};
+
 NetMsg::~NetMsg() {
   if (otaUrl[0] && otaSsid[0]) {
     std::string otaUrlStr = otaUrl;
@@ -106,6 +130,7 @@ NetMsg::~NetMsg() {
 
     if (otaUrlStr.starts_with("http://")) {
       // Get OTA partition
+      SoftWatchDog woof(150); // Max 2.5 mins to update
       const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
       esp_ota_handle_t update_handle = 0;
       ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &update_handle));

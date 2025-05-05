@@ -113,6 +113,13 @@ EspNet::EspNet(Trv *trv) : trv(trv) {
   // 2. Configure WiFi
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+  wifi_country_t country = {
+    .cc = "EU",           // Country code for Europe
+    .schan = 1,           // Start channel must be 1
+    .nchan = 13,          // Number of channels allowed in EU (channels 1 to 13)
+    .policy = WIFI_COUNTRY_POLICY_MANUAL  // Use manual policy to enforce these settings
+  };
+  esp_wifi_set_country(&country);
 
   // 3. Avoid NVS usage for faster startup
   ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
@@ -150,7 +157,7 @@ static void channel_change_event(void *event_handler_arg,
   }
 }
 
-esp_err_t set_channel(int channel) {
+esp_err_t set_channel(uint8_t channel) {
   esp_err_t e = esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
   if (e == ESP_OK) {
     int elapsed = 0;
@@ -183,7 +190,11 @@ void EspNet::checkMessages() {
     add_peer(BROADCAST_ADDR, 0);
     memset(pairInfo, 0, sizeof(pairInfo));
     nextPair = pairInfo;
-    for (int ch = 1; ch <= 13; ch++) {
+
+    wifi_country_t country;
+    esp_wifi_get_country(&country);
+
+    for (uint8_t ch = country.schan; ch < country.schan + country.nchan; ch++) {
       set_channel(ch);
       esp_now_send(BROADCAST_ADDR, (const uint8_t *)pairName.c_str(), pairName.length());
       delay(50);  // Wait for responses
