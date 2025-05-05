@@ -92,7 +92,7 @@ class SoftWatchDog: public WithTask {
     wait();
   }
   void task() {
-    while (seconds-- && !cancel) {
+    while (seconds-- > 0 && !cancel) {
       ESP_LOGI(TAG, "SoftWatchDog %d %d", seconds, cancel);
       vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
