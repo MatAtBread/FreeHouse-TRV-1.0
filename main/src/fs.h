@@ -8,7 +8,7 @@ class TrvFS {
  public:
   TrvFS();
   virtual ~TrvFS();
-  bool read(const char *name, void *p, __SIZE_TYPE__ size);
+  __SIZE_TYPE__ read(const char *name, void *p, __SIZE_TYPE__ size);
   bool write(const char *name, void *p, __SIZE_TYPE__ size);
 };
 #endif

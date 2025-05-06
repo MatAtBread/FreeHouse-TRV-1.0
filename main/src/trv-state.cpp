@@ -48,7 +48,8 @@ Trv::Trv() {
 
   // Try loading the config from the filesystem
   trv_state_t state;
-  if (!fs->read("/trv/state", &state, sizeof(state)) || state.version != STATE_VERSION) {
+  __SIZE_TYPE__ r = fs->read("/trv/state", &state, sizeof(state));
+  if (r != sizeof (state) || state.version != STATE_VERSION) {
     // By default we stay in heat mode so that when assembling the hardware, the plunger stays in place
     globalState.config.system_mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT;
     globalState.config.netMode = NET_MODE_ESP_NOW;
@@ -56,42 +57,6 @@ Trv::Trv() {
     globalState.config.local_temperature_calibration = 0.0;
     globalState.config.current_heating_setpoint = 21;
   } else {
-    switch (state.version) {
-      case 1: {
-        struct trv_state_s_1
-        {
-          uint32_t version; // 1
-          struct {
-            // Read only
-            float local_temperature;
-            uint32_t battery_raw;
-            uint8_t battery_percent;
-            uint8_t is_charging;
-            uint8_t position;
-          } sensors;
-          struct {
-            // Write (read is possible, but never modified by the system)
-            float current_heating_setpoint;
-            float local_temperature_calibration;
-            esp_zb_zcl_thermostat_system_mode_t system_mode; // ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF/AUTO/HEAT/SLEEP
-            net_mode_t netMode; // NET_MODE_ESP_NOW expects mqttConfig to contain WIFI settings, NET_MODE_MQTT expects WIFI & NET_MODE_MQTT settings, NET_MODE_ZIGBEE expects no config
-            trv_mqtt_t mqttConfig;
-          } config;
-        } *s = (struct trv_state_s_1 *)((void *)&state);
-        state.version = 2;
-        state.sensors.local_temperature = s->sensors.local_temperature;
-        state.sensors.battery_raw = s->sensors.battery_raw;
-        state.sensors.battery_percent = s->sensors.battery_percent;
-        state.sensors.is_charging = s->sensors.is_charging;
-        state.sensors.position = s->sensors.position;
-        state.config.current_heating_setpoint = s->config.current_heating_setpoint;
-        state.config.local_temperature_calibration = s->config.local_temperature_calibration;
-        state.config.system_mode = s->config.system_mode;
-        state.config.netMode = s->config.netMode;
-        state.config.mqttConfig = s->config.mqttConfig;
-      }
-      break;
-    }
     globalState.config = state.config;
   }
 
