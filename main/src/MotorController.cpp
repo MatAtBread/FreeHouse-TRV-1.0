@@ -45,7 +45,16 @@ void MotorController::setDirection(int dir) {
   }
 }
 
-void MotorController::setValvePosition(uint8_t pos) {
+void MotorController::setValvePosition(int pos) {
+  if (pos == -1) {
+    target = current;
+    setDirection(0);
+    return;
+  }
+  if (pos < 0 || pos > 100) {
+    ESP_LOGW(TAG, "MotorController::setValvePosition - illegal position %d", pos);
+    return;
+  }
   ESP_LOGI(TAG, "MotorController::setValvePosition %d %d", pos, target);
   // Let task pick up the change (we could wait until the next dreamtime)
   target = pos;

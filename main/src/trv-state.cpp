@@ -189,6 +189,7 @@ void Trv::setSystemMode(esp_zb_zcl_thermostat_system_mode_t mode) {
     checkAutoState();
   } else if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP) {
     globalState.config.system_mode = mode;
+    motor->setValvePosition(-1); // Just stops the motor where it is
     saveState();
     // In sleep mode we just don't move the plunger at all
   }

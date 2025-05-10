@@ -9,6 +9,7 @@
 #include "string.h"
 #include "esp_wifi_types.h"
 
+#define PAIR_DELIM "\x1D"
 #define MACSTR "%02X:%02X:%02X:%02X:%02X:%02X"
 #define MAC2STR(mac) mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
 
@@ -178,8 +179,8 @@ esp_err_t set_channel(uint8_t channel) {
 void EspNet::checkMessages() {
   std::string pairName = "PAIR";
   pairName += Trv::deviceName();
-  pairName += ':';
-  pairName += "FreeHouse:{\"model\":\"" ;
+  pairName += PAIR_DELIM;
+  pairName += "FreeHouse" PAIR_DELIM "{\"model\":\"" ;
   pairName += FREEHOUSE_MODEL;
   pairName += "\",\"build\":\"";
   pairName += versionDetail;
