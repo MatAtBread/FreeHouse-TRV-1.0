@@ -78,8 +78,8 @@ void checkForMessages(Trv *trv) {
 static RTC_DATA_ATTR int wakeCount = 0;
 
 extern "C" void app_main() {
-  esp_log_level_set("*", ESP_LOG_WARN);
-  esp_log_level_set(TAG, ESP_LOG_VERBOSE);
+//  esp_log_level_set("*", ESP_LOG_WARN);
+  esp_log_level_set(TAG, ESP_LOG_INFO);
 
   auto wakeCause = esp_sleep_get_wakeup_cause();
   auto resetCause = esp_reset_reason();

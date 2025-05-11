@@ -32,12 +32,12 @@ void WithTask::start() {
   };
 
   vTaskGetInfo(NULL, &taskInfo, pdTRUE, eInvalid);
-  ESP_LOGW(TAG, "WithTask started  %s %d", taskInfo.pcTaskName, numRunning);
+  ESP_LOGI(TAG, "WithTask started  %s %d", taskInfo.pcTaskName, numRunning);
   task();
   if (running)
     xEventGroupSetBits(running, WITHTASK_FINISHED);
   running = NULL;
-  ESP_LOGW(TAG, "WithTask finished %s %d", taskInfo.pcTaskName, numRunning);
+  ESP_LOGI(TAG, "WithTask finished %s %d", taskInfo.pcTaskName, numRunning);
   numRunning--;
   if (numRunning == 0 && anyTasks) {
     xEventGroupSetBits(anyTasks, WITHTASK_FINISHED);

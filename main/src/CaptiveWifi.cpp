@@ -90,11 +90,9 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
   } else if (startsWith(url, "/temp-")) {
     trv->setHeatingSetpoint(atof(url + 6));
   } else if (startsWith(url, "/close")) {
-    ESP_LOGW(TAG, "NYI: Close portal");
     timeout = 0;
   } else if (startsWith(url, "/power-off")) {
-    ESP_LOGW(TAG, "NYI: Power off");
-    esp_deep_sleep(86400000000ULL);
+    esp_deep_sleep(60 * 60 * 1000000ULL);
   } else if (isEspNow || startsWith(url, "/net-mqtt/")) {
     std::string mqConf = url + 9;
     std::string device = mqConf.substr(0,mqConf.find('-'));

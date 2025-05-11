@@ -65,7 +65,7 @@ void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info, cons
     processNetMessage((const char *)data, trv);
   } else if (memcmp(data, "PACK", 4) == 0) {
     if (nextPair == NULL) {
-      ESP_LOGW(TAG, "Pairing finished!");
+      ESP_LOGI(TAG, "Pairing finished!");
       return;
     }
     if (nextPair - pairInfo >= sizeof(pairInfo) / sizeof(pairing_info_t)) {
@@ -114,13 +114,13 @@ EspNet::EspNet(Trv *trv) : trv(trv) {
   // 2. Configure WiFi
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-  wifi_country_t country = {
-    .cc = "EU",           // Country code for Europe
-    .schan = 1,           // Start channel must be 1
-    .nchan = 13,          // Number of channels allowed in EU (channels 1 to 13)
-    .policy = WIFI_COUNTRY_POLICY_MANUAL  // Use manual policy to enforce these settings
-  };
-  esp_wifi_set_country(&country);
+  // wifi_country_t country = {
+  //   .cc = "EU",           // Country code for Europe
+  //   .schan = 1,           // Start channel must be 1
+  //   .nchan = 13,          // Number of channels allowed in EU (channels 1 to 13)
+  //   .policy = WIFI_COUNTRY_POLICY_MANUAL  // Use manual policy to enforce these settings
+  // };
+  // esp_wifi_set_country(&country);
 
   // 3. Avoid NVS usage for faster startup
   ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
