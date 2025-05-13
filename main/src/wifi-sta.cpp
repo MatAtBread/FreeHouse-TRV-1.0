@@ -9,50 +9,16 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include "nvs_flash.h"
+#include "board.h"
 
 #include "../trv.h"
 #include "wifi-sta.hpp"
-
-/* The examples use WiFi configuration that you can set via project configuration menu
-
-   If you'd rather not, just change the below entries to strings with
-   the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
-*/
-
-// #if CONFIG_ESP_WPA3_SAE_PWE_HUNT_AND_PECK
-// #define ESP_WIFI_SAE_MODE WPA3_SAE_PWE_HUNT_AND_PECK
-// #define EXAMPLE_H2E_IDENTIFIER ""
-// #elif CONFIG_ESP_WPA3_SAE_PWE_HASH_TO_ELEMENT
-// #define ESP_WIFI_SAE_MODE WPA3_SAE_PWE_HASH_TO_ELEMENT
-// #define EXAMPLE_H2E_IDENTIFIER CONFIG_ESP_WIFI_PW_ID
-// #elif CONFIG_ESP_WPA3_SAE_PWE_BOTH
-// #define ESP_WIFI_SAE_MODE WPA3_SAE_PWE_BOTH
-// #define EXAMPLE_H2E_IDENTIFIER CONFIG_ESP_WIFI_PW_ID
-// #endif
-// #if CONFIG_ESP_WIFI_AUTH_OPEN
-// #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_OPEN
-// #elif CONFIG_ESP_WIFI_AUTH_WEP
-// #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WEP
-// #elif CONFIG_ESP_WIFI_AUTH_WPA_PSK
-// #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA_PSK
-// #elif CONFIG_ESP_WIFI_AUTH_WPA2_PSK
-// #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_PSK
-// #elif CONFIG_ESP_WIFI_AUTH_WPA_WPA2_PSK
-// #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA_WPA2_PSK
-// #elif CONFIG_ESP_WIFI_AUTH_WPA3_PSK
-// #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA3_PSK
-// #elif CONFIG_ESP_WIFI_AUTH_WPA2_WPA3_PSK
-// #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_WPA3_PSK
-// #elif CONFIG_ESP_WIFI_AUTH_WAPI_PSK
-// #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WAPI_PSK
-// #endif
 
 /* The event group allows multiple bits for each event, but we only care about two events:
  * - we are connected to the AP with an IP
  * - we failed to connect after the maximum amount of retries */
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT BIT1
-
 
 void _event_handler(void* wifi, esp_event_base_t event_base,
   int32_t event_id, void* event_data) {
@@ -87,14 +53,14 @@ void WiFiStation::wifi_init_sta(void) {
   esp_netif_set_hostname(sta_netif, device_name);
 
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-  wifi_country_t country = {
-    .cc = "EU",           // Country code for Europe
-    .schan = 1,           // Start channel must be 1
-    .nchan = 13,          // Number of channels allowed in EU (channels 1 to 13)
-    .policy = WIFI_COUNTRY_POLICY_MANUAL  // Use manual policy to enforce these settings
-  };
-  esp_wifi_set_country(&country);
+  ESP_ERROR_CHECK(dev_wifi_init(&cfg));
+  // wifi_country_t country = {
+  //   .cc = "EU",           // Country code for Europe
+  //   .schan = 1,           // Start channel must be 1
+  //   .nchan = 13,          // Number of channels allowed in EU (channels 1 to 13)
+  //   .policy = WIFI_COUNTRY_POLICY_MANUAL  // Use manual policy to enforce these settings
+  // };
+  // esp_wifi_set_country(&country);
 
   ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
                                                       ESP_EVENT_ANY_ID,
@@ -158,7 +124,7 @@ WiFiStation::~WiFiStation(){
   esp_wifi_stop();
   esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &instance_any_id);
   esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &instance_got_ip);
-  esp_wifi_deinit();
+  dev_wifi_deinit();
   esp_netif_destroy_default_wifi(sta_netif);
   vEventGroupDelete(s_wifi_event_group);
   s_wifi_event_group = NULL;

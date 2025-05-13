@@ -8,6 +8,7 @@
 #include "esp_wifi.h"
 #include "string.h"
 #include "esp_wifi_types.h"
+#include "../src/board.h"
 
 #define PAIR_DELIM "\x1D"
 #define MACSTR "%02X:%02X:%02X:%02X:%02X:%02X"
@@ -113,7 +114,7 @@ EspNet::EspNet(Trv *trv) : trv(trv) {
 
   // 2. Configure WiFi
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+  ESP_ERROR_CHECK(dev_wifi_init(&cfg));
   // wifi_country_t country = {
   //   .cc = "EU",           // Country code for Europe
   //   .schan = 1,           // Start channel must be 1
@@ -142,7 +143,7 @@ EspNet::~EspNet() {
   ESP_LOGI(TAG, "De-init radio");
   ESP_ERROR_CHECK(esp_now_deinit());
   ESP_ERROR_CHECK(esp_wifi_stop());
-  ESP_ERROR_CHECK(esp_wifi_deinit());
+  ESP_ERROR_CHECK(dev_wifi_deinit());
 }
 
 static volatile uint8_t new_channel = 0xFF;  // Invalid channel

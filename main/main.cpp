@@ -115,7 +115,7 @@ extern "C" void app_main() {
   Trv *trv = new Trv();
   uint32_t dreamTime;
 
-  if (trv->flatBattery()) {
+  if (trv->flatBattery() && !trv->is_charging()) {
     ESP_LOGI(TAG, "Battery exhausted");
     dreamTime = 60 * 60 * 1000000UL;  // 1 hour
   } else {
