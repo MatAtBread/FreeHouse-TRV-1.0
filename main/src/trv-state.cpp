@@ -12,7 +12,7 @@
 #define DTEMP 18     // D10
 #define BATTERY 0    // A0
 
-#define STATE_VERSION 1
+#define STATE_VERSION 2
 
 extern const char *systemModes[];
 
@@ -20,6 +20,7 @@ static RTC_DATA_ATTR trv_state_t globalState = {
   .version = STATE_VERSION,
   .sensors = {
     .local_temperature = 20.0,
+    .sensor_temperature = 20.0,
     .battery_raw = 3500,
     .battery_percent = 50,
     .is_charging = 0,
@@ -47,7 +48,8 @@ Trv::Trv() {
 
   // Try loading the config from the filesystem
   trv_state_t state;
-  if (!fs->read("/trv/state", &state, sizeof(state)) || state.version != STATE_VERSION) {
+  __SIZE_TYPE__ r = fs->read("/trv/state", &state, sizeof(state));
+  if (r != sizeof (state) || state.version != STATE_VERSION) {
     // By default we stay in heat mode so that when assembling the hardware, the plunger stays in place
     globalState.config.system_mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT;
     globalState.config.netMode = NET_MODE_ESP_NOW;
@@ -59,7 +61,7 @@ Trv::Trv() {
   }
 
   // Get the sensor values
-  tempSensor = new DallasOneWire(DTEMP, globalState.sensors.local_temperature);
+  tempSensor = new DallasOneWire(DTEMP, globalState.sensors.sensor_temperature);
   battery = new BatteryMonitor(BATTERY, CHARGING);
   motor = new MotorController(MOTOR, NSLEEP, battery, globalState.sensors.position);
   getState(true); // Lazily update temp
@@ -87,6 +89,7 @@ std::string Trv::asJson(const trv_state_t& s) {
   json << "{"
     "\"mcu_temperature\":" << mcu_temp << ","
     "\"local_temperature\":" << s.sensors.local_temperature << ","
+    "\"sensor_temperature\":" << s.sensors.sensor_temperature << ","
     "\"battery_percent\":" << (int)s.sensors.battery_percent << ","
     "\"battery_mv\":" << (int)s.sensors.battery_raw << ","
     "\"is_charging\":" << (s.sensors.is_charging ? "true" : "false") << ","
@@ -125,7 +128,10 @@ const trv_state_t& Trv::getState(bool fast) {
     if (globalState.sensors.is_charging) {
       compensation = 1.0; // TODO: calibrate this value from the MCU temperature
     }
-    globalState.sensors.local_temperature = tempSensor->readTemp() + globalState.config.local_temperature_calibration + compensation;
+
+    // We choose to keep a running average the temp to minimize the heating effect of operating
+    auto local = tempSensor->readTemp() + globalState.config.local_temperature_calibration + compensation;
+    globalState.sensors.local_temperature = (local + globalState.sensors.local_temperature) / 2;
   }
 
   globalState.sensors.position = motor->getValvePosition();
@@ -183,6 +189,7 @@ void Trv::setSystemMode(esp_zb_zcl_thermostat_system_mode_t mode) {
     checkAutoState();
   } else if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP) {
     globalState.config.system_mode = mode;
+    motor->setValvePosition(-1); // Just stops the motor where it is
     saveState();
     // In sleep mode we just don't move the plunger at all
   }
@@ -191,7 +198,7 @@ void Trv::setSystemMode(esp_zb_zcl_thermostat_system_mode_t mode) {
 void Trv::checkAutoState() {
   auto state = getState(true);
   if (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO) {
-    if (state.sensors.local_temperature > state.config.current_heating_setpoint + 0.5) {
+    if (state.sensors.local_temperature > state.config.current_heating_setpoint) {
       motor->setValvePosition(0);
     } else if (state.sensors.local_temperature < state.config.current_heating_setpoint - 0.5) {
       motor->setValvePosition(100);

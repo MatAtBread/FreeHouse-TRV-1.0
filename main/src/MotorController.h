@@ -18,7 +18,7 @@ class MotorController: public WithTask {
   ~MotorController();
   void task();
   int getDirection();
-  void setValvePosition(uint8_t pos);
+  void setValvePosition(int pos /* 0-100, -1 means "current position - stop the motor now" */);
   uint8_t getValvePosition();
 };
 

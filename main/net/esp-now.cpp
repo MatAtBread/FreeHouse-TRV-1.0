@@ -8,7 +8,9 @@
 #include "esp_wifi.h"
 #include "string.h"
 #include "esp_wifi_types.h"
+#include "../src/board.h"
 
+#define PAIR_DELIM "\x1D"
 #define MACSTR "%02X:%02X:%02X:%02X:%02X:%02X"
 #define MAC2STR(mac) mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
 
@@ -64,7 +66,7 @@ void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info, cons
     processNetMessage((const char *)data, trv);
   } else if (memcmp(data, "PACK", 4) == 0) {
     if (nextPair == NULL) {
-      ESP_LOGW(TAG, "Pairing finished!");
+      ESP_LOGI(TAG, "Pairing finished!");
       return;
     }
     if (nextPair - pairInfo >= sizeof(pairInfo) / sizeof(pairing_info_t)) {
@@ -112,7 +114,7 @@ EspNet::EspNet(Trv *trv) : trv(trv) {
 
   // 2. Configure WiFi
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+  ESP_ERROR_CHECK(dev_wifi_init(&cfg));
 
   // 3. Avoid NVS usage for faster startup
   ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
@@ -134,7 +136,7 @@ EspNet::~EspNet() {
   ESP_LOGI(TAG, "De-init radio");
   ESP_ERROR_CHECK(esp_now_deinit());
   ESP_ERROR_CHECK(esp_wifi_stop());
-  ESP_ERROR_CHECK(esp_wifi_deinit());
+  ESP_ERROR_CHECK(dev_wifi_deinit());
 }
 
 static volatile uint8_t new_channel = 0xFF;  // Invalid channel
@@ -150,7 +152,7 @@ static void channel_change_event(void *event_handler_arg,
   }
 }
 
-esp_err_t set_channel(int channel) {
+esp_err_t set_channel(uint8_t channel) {
   esp_err_t e = esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
   if (e == ESP_OK) {
     int elapsed = 0;
@@ -171,8 +173,8 @@ esp_err_t set_channel(int channel) {
 void EspNet::checkMessages() {
   std::string pairName = "PAIR";
   pairName += Trv::deviceName();
-  pairName += ':';
-  pairName += "FreeHouse:{\"model\":\"" ;
+  pairName += PAIR_DELIM;
+  pairName += "FreeHouse" PAIR_DELIM "{\"model\":\"" ;
   pairName += FREEHOUSE_MODEL;
   pairName += "\",\"build\":\"";
   pairName += versionDetail;
@@ -183,7 +185,19 @@ void EspNet::checkMessages() {
     add_peer(BROADCAST_ADDR, 0);
     memset(pairInfo, 0, sizeof(pairInfo));
     nextPair = pairInfo;
-    for (int ch = 1; ch <= 13; ch++) {
+
+    wifi_country_t country = {
+      .cc = "GB",
+      .schan = 1,
+      .nchan = 13,
+      .policy = WIFI_COUNTRY_POLICY_MANUAL
+    };
+//    esp_wifi_set_country(&country); -- done in EspNet::EspNet via dev_wifi_init
+//    esp_wifi_set_country_code
+//    esp_wifi_get_country(&country); --- doesn't seem to actually work, or rather defaults to the US and wifi_set_country doesn't work for cc=EU
+    ESP_LOGI(TAG, "Wifi channel info %3s %d %d policy %d", country.cc, country.schan, country.nchan, country.policy);
+
+    for (uint8_t ch = country.schan; ch < country.schan + country.nchan; ch++) {
       set_channel(ch);
       esp_now_send(BROADCAST_ADDR, (const uint8_t *)pairName.c_str(), pairName.length());
       delay(50);  // Wait for responses

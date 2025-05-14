@@ -8,6 +8,8 @@
 #include "onewire.h"
 #include "onewire_symbols.h"
 
+extern const char *TAG;
+
 static const rmt_symbol_word_t symbol_reset = OW_SYMBOL_RESET;
 
 static const rmt_receive_config_t rx_config = {
@@ -42,12 +44,12 @@ bool ow_reset (OW *ow) {
     ESP_ERROR_CHECK_WITHOUT_ABORT(rmt_receive (ow->rx_channel, ow->rx_buffer, ow->rx_buflen, &rx_config));
     ESP_ERROR_CHECK_WITHOUT_ABORT(rmt_transmit (ow->tx_channel, ow->copy_encoder, &symbol_reset, sizeof (rmt_symbol_word_t), &tx_config));
     if (xQueueReceive (ow->rx_queue, &evt, pdMS_TO_TICKS(OW_RMT_TIMEOUT_MS)) != pdTRUE) {
-        ESP_LOGE(__func__, "rx timeout");
+        ESP_LOGE (TAG, "%s: rx timeout", __func__);
         return false;
     }
     bool is_present = _parse_reset_symbols (evt.num_symbols, evt.received_symbols);
     if (rmt_tx_wait_all_done (ow->tx_channel, OW_RMT_TIMEOUT_MS) != ESP_OK) {
-        ESP_LOGE (__func__, "tx timeout");
+        ESP_LOGE (TAG, "%s: tx timeout", __func__);
     }
     return is_present;
 }

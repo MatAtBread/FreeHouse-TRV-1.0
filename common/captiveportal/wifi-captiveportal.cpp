@@ -15,6 +15,7 @@
 
 #include "nvs_flash.h"
 #include "esp_wifi.h"
+#include "../../main/src/board.h"
 #include "esp_netif.h"
 #include "lwip/inet.h"
 
@@ -46,7 +47,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
 static void wifi_init_softap(const char *ssid)
 {
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    ESP_ERROR_CHECK(dev_wifi_init(&cfg));
 
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
 

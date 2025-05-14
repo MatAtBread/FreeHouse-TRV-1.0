@@ -8,6 +8,8 @@
 #include "onewire.h"
 #include "onewire_symbols.h"
 
+extern const char *TAG;
+
 static const rmt_receive_config_t rx_config = {
     .signal_range_min_ns = OW_RX_MIN_NS,
     .signal_range_max_ns = (OW_TIMING_PARAM_A + OW_TIMING_PARAM_B) * 1000
@@ -39,7 +41,7 @@ uint8_t ow_read (OW *ow) {
     rmt_receive (ow->rx_channel, ow->rx_buffer, ow->rx_buflen, &rx_config);
     ow_send (ow, 0xff);
     if (xQueueReceive (ow->rx_queue, &evt, pdMS_TO_TICKS(OW_RMT_TIMEOUT_MS)) != pdTRUE) {
-        ESP_LOGE (__func__, "rx timeout");
+        ESP_LOGE (TAG, "%s: rx timeout", __func__);
         return false;
     }
     return _parse_bit_symbols (evt.num_symbols, evt.received_symbols);
@@ -51,7 +53,7 @@ bool ow_read_bit (OW *ow) {
     rmt_receive (ow->rx_channel, ow->rx_buffer, ow->rx_buflen, &rx_config);
     ow_send_bit (ow, 1);
     if (xQueueReceive (ow->rx_queue, &evt, pdMS_TO_TICKS(OW_RMT_TIMEOUT_MS)) != pdTRUE) {
-        ESP_LOGE (__func__, "rx timeout");
+        ESP_LOGE (TAG, "%s: rx timeout", __func__);
         return false;
     }
     return (_parse_bit_symbols (evt.num_symbols, evt.received_symbols) & 0x01);
