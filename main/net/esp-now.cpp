@@ -115,13 +115,6 @@ EspNet::EspNet(Trv *trv) : trv(trv) {
   // 2. Configure WiFi
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   ESP_ERROR_CHECK(dev_wifi_init(&cfg));
-  // wifi_country_t country = {
-  //   .cc = "EU",           // Country code for Europe
-  //   .schan = 1,           // Start channel must be 1
-  //   .nchan = 13,          // Number of channels allowed in EU (channels 1 to 13)
-  //   .policy = WIFI_COUNTRY_POLICY_MANUAL  // Use manual policy to enforce these settings
-  // };
-  // esp_wifi_set_country(&country);
 
   // 3. Avoid NVS usage for faster startup
   ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
@@ -193,8 +186,16 @@ void EspNet::checkMessages() {
     memset(pairInfo, 0, sizeof(pairInfo));
     nextPair = pairInfo;
 
-    wifi_country_t country;
-    esp_wifi_get_country(&country);
+    wifi_country_t country = {
+      .cc = "GB",
+      .schan = 1,
+      .nchan = 13,
+      .policy = WIFI_COUNTRY_POLICY_MANUAL
+    };
+//    esp_wifi_set_country(&country); -- done in EspNet::EspNet via dev_wifi_init
+//    esp_wifi_set_country_code
+//    esp_wifi_get_country(&country); --- doesn't seem to actually work, or rather defaults to the US and wifi_set_country doesn't work for cc=EU
+    ESP_LOGI(TAG, "Wifi channel info %3s %d %d policy %d", country.cc, country.schan, country.nchan, country.policy);
 
     for (uint8_t ch = country.schan; ch < country.schan + country.nchan; ch++) {
       set_channel(ch);
