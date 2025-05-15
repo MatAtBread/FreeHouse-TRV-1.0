@@ -93,6 +93,14 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
     timeout = 0;
   } else if (startsWith(url, "/power-off")) {
     esp_deep_sleep(60 * 60 * 1000000ULL);
+  } else if (startsWith(url, "/set-passphrase/")) {
+      char passphrase[64];
+      unencode(passphrase, req->uri + 16, sizeof(passphrase));
+      auto passKey = trv->getState(false).config.passKey;
+      if (strlen(passphrase) && get_key_for_passphrase(passphrase,(uint8_t *)passKey) == 0) {
+        trv->saveState();
+        return ESP_OK;
+      }
   } else if (isEspNow || startsWith(url, "/net-mqtt/")) {
     std::string mqConf = url + 9;
     std::string device = mqConf.substr(0,mqConf.find('-'));
@@ -208,6 +216,9 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
     "<button onclick='window.location.href = \"/net-esp/\"+encodeURIComponent(\"device,ssid,pwd,mqtt\".split(\",\").map(id => document.getElementById(id).value).join(\"-\"))'>Enable ESP-NOW</button>\n"
     // "<button onclick='window.location.href = \"/net-mqtt/\"+encodeURIComponent(\"device,ssid,pwd,mqtt\".split(\",\").map(id => document.getElementById(id).value).join(\"-\"))'>Enable MQTT</button>\n"
     // "<button onclick='window.location.href = \"/net-zigbee\"'>Disable MQTT</button>\n"
+
+    "<button onclick=\"const n = prompt('Enter the new FreeHouse network passphrase'); if (n) fetch('/set-passphrase/'+encodeURIComponent(n));\">Set FreeHouse network name</button>"
+
     "<button onclick='window.location.href = \"/close\"'>Close</button>\n"
     // "<button onclick='window.location.href = \"/power-off\"'>Power Off</button>\n"
 

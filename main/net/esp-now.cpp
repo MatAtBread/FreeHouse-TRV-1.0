@@ -9,6 +9,7 @@
 #include "string.h"
 #include "esp_wifi_types.h"
 #include "../src/board.h"
+#include "../../common/encryption/encryption.h";
 
 #define PAIR_DELIM "\x1D"
 #define MACSTR "%02X:%02X:%02X:%02X:%02X:%02X"
@@ -171,14 +172,33 @@ esp_err_t set_channel(uint8_t channel) {
 }
 
 void EspNet::checkMessages() {
-  std::string pairName = "PAIR";
-  pairName += Trv::deviceName();
-  pairName += PAIR_DELIM;
-  pairName += "FreeHouse" PAIR_DELIM "{\"model\":\"" ;
-  pairName += FREEHOUSE_MODEL;
-  pairName += "\",\"build\":\"";
-  pairName += versionDetail;
-  pairName += "\"}";
+  uint8_t *out;
+  size_t out_len;
+  {
+    std::string pairName = "";
+    pairName += Trv::deviceName();
+    pairName += PAIR_DELIM;
+    pairName += "FreeHouse" PAIR_DELIM "{\"model\":\"" ;
+    pairName += FREEHOUSE_MODEL;
+    pairName += "\",\"build\":\"";
+    pairName += versionDetail;
+    pairName += "\"}";
+
+    if (encrypt_bytes_with_passphrase(pairName.c_str(), 0, trv->getState(true).config.passKey, &out, &out_len)) {
+      ESP_LOGW(TAG, "Failed to encrypt JOIN");
+      return;
+    }
+  }
+
+  {
+    uint8_t *verbPhrase = (uint8_t *)malloc(out_len + 4);
+    *((uint32_t *)verbPhrase) = *((const uint32_t *)"JOIN");
+    memcpy(verbPhrase + 4, out, out_len);
+    free(out);
+    out = verbPhrase;
+    out_len += 4;
+  }
+
   if (wifiChannel == 0) {
     esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_HOME_CHANNEL_CHANGE, channel_change_event, NULL);
 
@@ -199,7 +219,7 @@ void EspNet::checkMessages() {
 
     for (uint8_t ch = country.schan; ch < country.schan + country.nchan; ch++) {
       set_channel(ch);
-      esp_now_send(BROADCAST_ADDR, (const uint8_t *)pairName.c_str(), pairName.length());
+      esp_now_send(BROADCAST_ADDR, out, out_len);
       delay(50);  // Wait for responses
     }
     pairing_info_t *lastPair = nextPair;
@@ -236,7 +256,8 @@ void EspNet::checkMessages() {
     esp_wifi_set_channel(wifiChannel, WIFI_SECOND_CHAN_NONE);
     // We send a PAIR here just to elicit any deferred messages
     add_peer(hub, wifiChannel);
-    esp_now_send(hub, (const uint8_t *)pairName.c_str(), pairName.length());
+    esp_now_send(hub, out, out_len);
     delay(50);  // Wait for responses
   }
+  free(out);
 }

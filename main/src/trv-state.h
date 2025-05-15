@@ -7,6 +7,7 @@
 #include "DallasOneWire/DallasOneWire.h"
 #include "MotorController.h"
 #include "fs.h"
+#include "../../common/encryption/encryption.h"
 
 //#include "../managed_components/espressif__esp-zigbee-lib/include/zcl/esp_zigbee_zcl_thermostat.h"
 typedef enum {
@@ -51,6 +52,7 @@ typedef struct trv_state_s
     esp_zb_zcl_thermostat_system_mode_t system_mode; // ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF/AUTO/HEAT/SLEEP
     net_mode_t netMode; // NET_MODE_ESP_NOW expects mqttConfig to contain WIFI settings, NET_MODE_MQTT expects WIFI & NET_MODE_MQTT settings, NET_MODE_ZIGBEE expects no config
     trv_mqtt_t mqttConfig;
+    ENCRYPTION_KEY passKey;
   } config;
 } trv_state_t;
 

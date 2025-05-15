@@ -12,7 +12,7 @@
 #define DTEMP 18     // D10
 #define BATTERY 0    // A0
 
-#define STATE_VERSION 2
+#define STATE_VERSION 3
 
 extern const char *systemModes[];
 
@@ -37,7 +37,8 @@ static RTC_DATA_ATTR trv_state_t globalState = {
         .device_name = "",
         .mqtt_server = "mqtt.local",
         .mqtt_port = 1883,
-    }
+    },
+    .passKey = {0}
   }
 };
 
@@ -49,6 +50,14 @@ Trv::Trv() {
   // Try loading the config from the filesystem
   trv_state_t state;
   __SIZE_TYPE__ r = fs->read("/trv/state", &state, sizeof(state));
+  if (r <= sizeof(state) && state.version < STATE_VERSION) {
+    // Change a state v2 into a state v3
+    if (state.version == 2 && r == sizeof(state) - sizeof(state.config.passKey)) {
+      state.version = 3;
+      memset(state.config.passKey, 0, sizeof (state.config.passKey));
+    }
+  }
+
   if (r != sizeof (state) || state.version != STATE_VERSION) {
     // By default we stay in heat mode so that when assembling the hardware, the plunger stays in place
     globalState.config.system_mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT;
