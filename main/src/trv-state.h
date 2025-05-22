@@ -79,7 +79,7 @@ public:
   void setNetMode(net_mode_t mode, trv_mqtt_t *mqtt = NULL);
 
   static const char* deviceName();
-  static std::string asJson(const trv_state_t& state);
+  static std::string asJson(const trv_state_t& state, signed int rssi = 0);
 };
 
 #endif

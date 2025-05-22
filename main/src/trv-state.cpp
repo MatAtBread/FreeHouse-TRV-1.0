@@ -88,15 +88,16 @@ Trv::~Trv() {
   delete motor;
 }
 
-std::string Trv::asJson(const trv_state_t& s) {
+std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
   mcu_temp_init();
   auto mcu_temp = mcu_temp_read();
   mcu_temp_deinit();
   ESP_LOGI(TAG, "MCU temp: %f", mcu_temp);
 
   std::stringstream json;
-  json << "{"
-    "\"mcu_temperature\":" << mcu_temp << ","
+  json << "{";
+  if (rssi) json << "\"rssi\":" << rssi << ",";
+  json << "\"mcu_temperature\":" << mcu_temp << ","
     "\"local_temperature\":" << s.sensors.local_temperature << ","
     "\"sensor_temperature\":" << s.sensors.sensor_temperature << ","
     "\"battery_percent\":" << (int)s.sensors.battery_percent << ","

@@ -20,6 +20,7 @@ typedef uint8_t MACAddr[6];
 const MACAddr BROADCAST_ADDR = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 RTC_DATA_ATTR MACAddr hub = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 RTC_DATA_ATTR int wifiChannel = 0;
+RTC_DATA_ATTR static signed int avgRssi = 0;
 
 typedef struct {
   MACAddr mac;
@@ -28,6 +29,7 @@ typedef struct {
 
 static pairing_info_t pairInfo[20] = {0};
 static pairing_info_t *nextPair = NULL;
+
 
 esp_err_t add_peer(const uint8_t *mac, uint8_t channel) {
   esp_now_peer_info_t peer;
@@ -48,7 +50,7 @@ void EspNet::sendStateToHub(const trv_state_t &state) {
   add_peer(hub, wifiChannel);
 
   // TODO: Check if the state has changed since the last update
-  auto json = trv->asJson(state);
+  auto json = trv->asJson(state, avgRssi);
   ESP_LOGI(TAG, "Send state %s", json.c_str());
   esp_now_send(hub, (uint8_t *)json.c_str(), json.length());
 }
@@ -61,6 +63,8 @@ void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info, cons
     esp_now_info->rx_ctrl->second,
     esp_now_info->rx_ctrl->rssi,
     data_len, data);
+
+  avgRssi = avgRssi ? (avgRssi + esp_now_info->rx_ctrl->rssi) / 2 : esp_now_info->rx_ctrl->rssi;
 
   if (data[0] == '{') {
     // We got some data
