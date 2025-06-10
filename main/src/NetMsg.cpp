@@ -173,6 +173,7 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
   cJSON *system_mode = cJSON_GetObjectItem(root, "system_mode");
   cJSON *current_heating_setpoint = cJSON_GetObjectItem(root, "current_heating_setpoint");
   cJSON *local_temperature_calibration = cJSON_GetObjectItem(root, "local_temperature_calibration");
+  cJSON *sleep_time = cJSON_GetObjectItem(root, "sleep_time");
 
   if (cJSON_IsString(system_mode) && (system_mode->valuestring != NULL)) {
     for (esp_zb_zcl_thermostat_system_mode_t mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF;
@@ -196,6 +197,12 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
     ESP_LOGI(TAG, "local_temperature_calibration %f\n", local_temperature_calibration->valuedouble);
     messageCount++;
     trv->setTempCalibration((float)local_temperature_calibration->valuedouble);
+  }
+
+  if (cJSON_IsNumber(sleep_time)) {
+    ESP_LOGI(TAG, "sleep_time %d\n", sleep_time->valueint);
+    messageCount++;
+    trv->setSleepTime(sleep_time->valueint);
   }
 
   cJSON *ota = cJSON_GetObjectItem(root, "ota");

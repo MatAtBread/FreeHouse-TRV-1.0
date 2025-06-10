@@ -92,8 +92,10 @@ void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info, cons
     p->rx = *esp_now_info->rx_ctrl;
     memcpy(p->mac, esp_now_info->src_addr, sizeof(MACAddr));
   } else {
-    memcpy(hub, BROADCAST_ADDR, sizeof(hub));
-    wifiChannel = 0;
+    if (wifiChannel > 0 && (wifiChannel == esp_now_info->rx_ctrl->channel || wifiChannel == esp_now_info->rx_ctrl->second)) {
+      memcpy(hub, BROADCAST_ADDR, sizeof(hub));
+      wifiChannel = 0;
+    }
   }
 }
 
@@ -175,6 +177,57 @@ esp_err_t set_channel(uint8_t channel) {
   return e;
 }
 
+void pair_with_hub(uint8_t *out, size_t out_len) {
+  esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_HOME_CHANNEL_CHANGE, channel_change_event, NULL);
+
+  add_peer(BROADCAST_ADDR, 0);
+  memset(pairInfo, 0, sizeof(pairInfo));
+  nextPair = pairInfo;
+
+  wifi_country_t country = {
+      .cc = "GB",
+      .schan = 1,
+      .nchan = 13,
+      .policy = WIFI_COUNTRY_POLICY_MANUAL};
+
+  ESP_LOGI(TAG, "Wifi channel info %3s %d %d policy %d", country.cc, country.schan, country.nchan, country.policy);
+
+  for (uint8_t ch = country.schan; ch < country.schan + country.nchan; ch++) {
+    set_channel(ch);
+    esp_now_send(BROADCAST_ADDR, out, out_len);
+    delay(50);  // Wait for responses
+  }
+  pairing_info_t *lastPair = nextPair;
+  nextPair = NULL;
+
+  pairing_info_t *best = NULL;
+  for (auto p = pairInfo; p < lastPair; p++) {
+    add_peer(p->mac, p->rx.channel);
+    if (!best || p->rx.rssi > best->rx.rssi)
+      best = p;
+  }
+
+  if (best == NULL) {
+    ESP_LOGW(TAG, "Failed to find hub");
+  } else {
+    ESP_LOGI(TAG, "Best hub " MACSTR " channel %d+%d, rssi %d", MAC2STR(best->mac), best->rx.channel, best->rx.second, best->rx.rssi);
+    for (auto p = pairInfo; p < lastPair; p++) {
+      if (p != best && memcmp(p->mac, best->mac, sizeof(MACAddr))) {
+        add_peer(p->mac, p->rx.channel);
+        set_channel(p->rx.channel);
+        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_now_send(p->mac, (const uint8_t *)"NACK", 5));
+        ESP_LOGI(TAG, "Nack'd hub " MACSTR " channel %d+%d, rssi %d", MAC2STR(p->mac), p->rx.channel, p->rx.second, p->rx.rssi);
+      }
+    }
+
+    memcpy(hub, best->mac, sizeof(MACAddr));
+    wifiChannel = best->rx.channel;
+    ESP_LOGI(TAG, "Paired with hub " MACSTR " on channel %d", MAC2STR(hub), wifiChannel);
+    set_channel(wifiChannel);
+  }
+  esp_event_handler_unregister(WIFI_EVENT, WIFI_EVENT_HOME_CHANNEL_CHANGE, channel_change_event);
+}
+
 void EspNet::checkMessages() {
   uint8_t *out;
   size_t out_len;
@@ -204,57 +257,7 @@ void EspNet::checkMessages() {
   }
 
   if (wifiChannel == 0) {
-    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_HOME_CHANNEL_CHANGE, channel_change_event, NULL);
-
-    add_peer(BROADCAST_ADDR, 0);
-    memset(pairInfo, 0, sizeof(pairInfo));
-    nextPair = pairInfo;
-
-    wifi_country_t country = {
-      .cc = "GB",
-      .schan = 1,
-      .nchan = 13,
-      .policy = WIFI_COUNTRY_POLICY_MANUAL
-    };
-//    esp_wifi_set_country(&country); -- done in EspNet::EspNet via dev_wifi_init
-//    esp_wifi_set_country_code
-//    esp_wifi_get_country(&country); --- doesn't seem to actually work, or rather defaults to the US and wifi_set_country doesn't work for cc=EU
-    ESP_LOGI(TAG, "Wifi channel info %3s %d %d policy %d", country.cc, country.schan, country.nchan, country.policy);
-
-    for (uint8_t ch = country.schan; ch < country.schan + country.nchan; ch++) {
-      set_channel(ch);
-      esp_now_send(BROADCAST_ADDR, out, out_len);
-      delay(50);  // Wait for responses
-    }
-    pairing_info_t *lastPair = nextPair;
-    nextPair = NULL;
-
-    pairing_info_t *best = NULL;
-    for (auto p = pairInfo; p < lastPair; p++) {
-      add_peer(p->mac, p->rx.channel);
-      if (!best || p->rx.rssi > best->rx.rssi)
-        best = p;
-    }
-
-    if (best == NULL) {
-      ESP_LOGW(TAG, "Failed to find hub");
-    } else {
-      ESP_LOGI(TAG, "Best hub " MACSTR " channel %d+%d, rssi %d", MAC2STR(best->mac), best->rx.channel, best->rx.second, best->rx.rssi);
-      for (auto p = pairInfo; p < lastPair; p++) {
-        if (p != best && memcmp(p->mac, best->mac, sizeof(MACAddr))) {
-          add_peer(p->mac, p->rx.channel);
-          set_channel(p->rx.channel);
-          ESP_ERROR_CHECK_WITHOUT_ABORT(esp_now_send(p->mac, (const uint8_t *)"NACK", 5));
-          ESP_LOGI(TAG, "Nack'd hub " MACSTR " channel %d+%d, rssi %d", MAC2STR(p->mac), p->rx.channel, p->rx.second, p->rx.rssi);
-        }
-      }
-
-      memcpy(hub, best->mac, sizeof(MACAddr));
-      wifiChannel = best->rx.channel;
-      ESP_LOGI(TAG, "Paired with hub " MACSTR " on channel %d", MAC2STR(hub), wifiChannel);
-      set_channel(wifiChannel);
-    }
-    esp_event_handler_unregister(WIFI_EVENT, WIFI_EVENT_HOME_CHANNEL_CHANGE, channel_change_event);
+    pair_with_hub(out, out_len);
   } else {
     ESP_LOGI(TAG, "Already paired with hub " MACSTR, MAC2STR(hub));
     esp_wifi_set_channel(wifiChannel, WIFI_SECOND_CHAN_NONE);
@@ -262,6 +265,10 @@ void EspNet::checkMessages() {
     add_peer(hub, wifiChannel);
     esp_now_send(hub, out, out_len);
     delay(50);  // Wait for responses
+    // If we were disconnected from the hub, try again (once)
+    if (wifiChannel == 0 || memcmp(hub, BROADCAST_ADDR, sizeof(hub)) == 0) {
+      pair_with_hub(out, out_len);
+    }
   }
   free(out);
 }

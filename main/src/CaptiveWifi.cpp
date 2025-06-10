@@ -89,6 +89,8 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
     trv->setSystemMode(ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP);
   } else if (startsWith(url, "/temp-")) {
     trv->setHeatingSetpoint(atof(url + 6));
+  } else if (startsWith(url, "/sleep_time-")) {
+    trv->setSleepTime(atoi(url + 12));
   } else if (startsWith(url, "/close")) {
     timeout = 0;
   } else if (startsWith(url, "/power-off")) {
@@ -208,6 +210,11 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
     "<input type='range' min='10' max='30' value='" << state.config.current_heating_setpoint << "' step='0.25' oninput='this.nextElementSibling.textContent = this.value' onchange='window.location.href = \"/temp-\"+this.value' /><span>" << state.config.current_heating_setpoint << "</span></td></tr>\n"
     "<tr><td>calibration</td><td>" << state.config.local_temperature_calibration << "</td></tr>\n"
     "<tr><td>Message comms mode</td><td>" << netModes[state.config.netMode] << "</td></tr>\n"
+    "<tr><td>Sleep time (secs)</td>"
+      "<td><input style='width:4em;' id='sleep_time' maxLength=4 value='" << state.config.sleep_time << "'>"
+        "<button onclick='window.location.href=\"/sleep_time-\"+Number(document.getElementById(\"sleep_time\")?.value || 20)'>Set</button>"
+      "</td>"
+    "</tr>\n"
     "<tr><td>MQTT/ESP-NOW device name</td><td><input id='device' value=\"" << state.config.mqttConfig.device_name << "\"></td></tr>\n"
     "<tr style='display:none;'><td>WiFi SSID</td><td><input id='ssid' value=\"" << state.config.mqttConfig.wifi_ssid << "\"></td></tr>\n"
     "<tr style='display:none;'><td>WiFi password</td><td><input id='pwd' value=\"" << state.config.mqttConfig.wifi_pwd << "\"></td></tr>\n"

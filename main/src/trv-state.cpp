@@ -12,7 +12,7 @@
 #define DTEMP 18     // D10
 #define BATTERY 0    // A0
 
-#define STATE_VERSION 3
+#define STATE_VERSION 4L
 
 extern const char *systemModes[];
 
@@ -38,7 +38,8 @@ static RTC_DATA_ATTR trv_state_t globalState = {
         .mqtt_server = "mqtt.local",
         .mqtt_port = 1883,
     },
-    .passKey = {0}
+    .passKey = {0},
+    .sleep_time = 20
   }
 };
 
@@ -50,21 +51,33 @@ Trv::Trv() {
   // Try loading the config from the filesystem
   trv_state_t state;
   __SIZE_TYPE__ r = fs->read("/trv/state", &state, sizeof(state));
-  if (r <= sizeof(state) && state.version < STATE_VERSION) {
+  ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
+  if (r && r <= sizeof(state) && state.version < STATE_VERSION) {
     // Change a state v2 into a state v3
-    if (state.version == 2 && r == sizeof(state) - sizeof(state.config.passKey)) {
+    if (state.version == 2 && r == sizeof(state) - (sizeof(state.config.passKey) + sizeof(state.config.sleep_time))) {
       state.version = 3;
       memset(state.config.passKey, 0, sizeof (state.config.passKey));
+      r += sizeof(state.config.passKey);
     }
+    ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
+    // Change a state v3 into a state v4
+    if (state.version == 3 && r == sizeof(state) - sizeof(state.config.sleep_time)) {
+      state.version = STATE_VERSION;
+      state.config.sleep_time = 20; // Default sleep time
+      r += sizeof(state.config.sleep_time);
+    }
+    ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
   }
 
   if (r != sizeof (state) || state.version != STATE_VERSION) {
+    ESP_LOGI(TAG, "Default state, version %lu != %lu", state.version, STATE_VERSION);
     // By default we stay in heat mode so that when assembling the hardware, the plunger stays in place
     globalState.config.system_mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT;
     globalState.config.netMode = NET_MODE_ESP_NOW;
     globalState.config.mqttConfig.mqtt_port = 1883;
     globalState.config.local_temperature_calibration = 0.0;
     globalState.config.current_heating_setpoint = 21;
+    globalState.config.sleep_time = 20;
   } else {
     globalState.config = state.config;
   }
@@ -88,6 +101,16 @@ Trv::~Trv() {
   delete motor;
 }
 
+void Trv::setSleepTime(int seconds) {
+  if (seconds < 0 || seconds > 120) {
+    ESP_LOGW(TAG, "Invalid sleep time %d, must be between 0 and 120", seconds);
+    return;
+  }
+  globalState.config.sleep_time = seconds;
+  saveState();
+  ESP_LOGI(TAG, "Set sleep time to %d seconds", seconds);
+}
+
 std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
   mcu_temp_init();
   auto mcu_temp = mcu_temp_read();
@@ -106,7 +129,8 @@ std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
     "\"position\":" << (int)s.sensors.position << ","
     "\"current_heating_setpoint\":" << s.config.current_heating_setpoint << ","
     "\"local_temperature_calibration\":" << s.config.local_temperature_calibration << ","
-    "\"system_mode\":\"" << systemModes[s.config.system_mode] << "\""
+    "\"system_mode\":\"" << systemModes[s.config.system_mode] << "\","
+    "\"sleep_time\":" << s.config.sleep_time <<
     "}";
 
   return json.str();

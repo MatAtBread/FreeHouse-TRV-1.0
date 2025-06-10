@@ -128,7 +128,7 @@ extern "C" void app_main() {
     if (!trv->deviceName()[0] || touchButtonPressed()) {
       ESP_LOGI(TAG, "Touch button pressed");
       new CaptivePortal(trv, trv->deviceName());
-      // wait for max 10 mins. The CaptivePortal will restart the device under user control
+      // wait for max 5 mins. The CaptivePortal will restart the device under user control
       for (int i = 0; i < 10 * 60; i++) {
         GPIO::digitalWrite(LED_BUILTIN, i & 1);
         delay(i & 1 ? 900 : 100);
@@ -136,7 +136,7 @@ extern "C" void app_main() {
       dreamTime = 1;
     } else {
       checkForMessages(trv);
-      dreamTime = 20 * 1000000UL;  // 20 seconds
+      dreamTime = trv->getState(true).config.sleep_time * 1000000UL;  // 20 seconds
     }
   }
 

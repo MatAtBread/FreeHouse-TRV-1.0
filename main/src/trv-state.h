@@ -53,6 +53,7 @@ typedef struct trv_state_s
     net_mode_t netMode; // NET_MODE_ESP_NOW expects mqttConfig to contain WIFI settings, NET_MODE_MQTT expects WIFI & NET_MODE_MQTT settings, NET_MODE_ZIGBEE expects no config
     trv_mqtt_t mqttConfig;
     ENCRYPTION_KEY passKey;
+    int sleep_time; // in seconds, 1 to 120
   } config;
 } trv_state_t;
 
@@ -77,7 +78,7 @@ public:
   bool flatBattery();
   bool is_charging();
   void setNetMode(net_mode_t mode, trv_mqtt_t *mqtt = NULL);
-
+  void setSleepTime(int seconds);
   static const char* deviceName();
   static std::string asJson(const trv_state_t& state, signed int rssi = 0);
 };
