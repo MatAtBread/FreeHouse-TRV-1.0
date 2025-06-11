@@ -102,8 +102,8 @@ Trv::~Trv() {
 }
 
 void Trv::setSleepTime(int seconds) {
-  if (seconds < 0 || seconds > 120) {
-    ESP_LOGW(TAG, "Invalid sleep time %d, must be between 0 and 120", seconds);
+  if (seconds < 0 || seconds > 300) {
+    ESP_LOGW(TAG, "Invalid sleep time %d, must be between 0 and 300", seconds);
     return;
   }
   globalState.config.sleep_time = seconds;

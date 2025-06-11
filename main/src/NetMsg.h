@@ -15,6 +15,7 @@ class NetMsg {
     public:
         NetMsg() { otaUrl[0] = otaSsid[0] = otaPwd[0] = 0; messageCount = 0; }
         int getMessageCount() { return messageCount; }
+        static const char *writeable[];
         virtual ~NetMsg();
 
         // Implemented by derived classes for each transport type

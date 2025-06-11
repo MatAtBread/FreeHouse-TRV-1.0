@@ -52,13 +52,16 @@ void checkForMessages(Trv *trv) {
   //   case NET_MODE_ZIGBEE:
   //   break;
   // }
+
+  int checkEvery = 60 / trv->getState(true).config.sleep_time;  // Check every 60 seconds, which is (usually) inferred from the config sleep_time
   net->checkMessages();
   // Note, if there were any messages that confifgured the heat settings, checkAutoState wuill have been called as part of their processing.
-  // So here, we only need to check the auto state for temperature changes. We do this every 4th time to avoid excessive checking and the valve
-  // moving too often, and to give the device temperature time to settle after a change (which drives up the internal temperature and causes resonance)
-  ESP_LOGI(TAG, "checkForMessages %d", messgageChecks);
+  // So here, we only need to check the auto state for temperature changes. We do this every 60-120 seconds (min, might be more if sleep_time is large)
+  // to avoid excessive checking and the valve moving too often, and to give the device temperature time to settle after a change (which
+  // drives up the internal temperature and causes resonance)
+  ESP_LOGI(TAG, "checkForMessages %d / %d", messgageChecks, checkEvery);
   if (net->getMessageCount() == 0) {
-    if (messgageChecks > 3) {
+    if (messgageChecks >= checkEvery) {
       trv->checkAutoState();
       messgageChecks = 0;
     } else {
@@ -72,7 +75,6 @@ void checkForMessages(Trv *trv) {
   net->sendStateToHub(trv->getState(false));
   trv->saveState();
   delete net;
-  //delay(10);
 }
 
 static RTC_DATA_ATTR int wakeCount = 0;

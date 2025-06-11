@@ -160,7 +160,15 @@ static void channel_change_event(void *event_handler_arg,
 }
 
 esp_err_t set_channel(uint8_t channel) {
-  esp_err_t e = esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+  uint8_t current;
+  wifi_second_chan_t secondary;
+  esp_err_t e = esp_wifi_get_channel(&current, &secondary);
+  ESP_LOGI(TAG, "Set wifi channel %d, current = %d", channel, current);
+  if (e == ESP_OK && current == channel) {
+    return ESP_OK;
+  }
+  new_channel = 0xFF;  // Reset volatile
+  e = esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
   if (e == ESP_OK) {
     int elapsed = 0;
     while (new_channel != channel && elapsed < 500) {
@@ -168,8 +176,10 @@ esp_err_t set_channel(uint8_t channel) {
       elapsed += 20;
     }
     if (new_channel != channel) {
-      ESP_LOGW(TAG, "Timed out waiting for channel change event");
+      ESP_LOGW(TAG, "Timed out waiting for channel %d change event", channel);
       e = ESP_ERR_TIMEOUT;
+    } else {
+      wifiChannel = channel;
     }
   } else {
     ESP_LOGE(TAG, "Failed to set channel %d", channel);
@@ -239,7 +249,15 @@ void EspNet::checkMessages() {
     pairName += FREEHOUSE_MODEL;
     pairName += "\",\"build\":\"";
     pairName += versionDetail;
-    pairName += "\"}";
+    pairName += "\", \"writeable\":[";
+
+    for (auto p = NetMsg::writeable; *p; p++) {
+      if (p != NetMsg::writeable) pairName += ",";
+      pairName += "\"";
+      pairName += *p;
+      pairName += "\"";
+    }
+    pairName += "]}";
 
     if (encrypt_bytes_with_passphrase(pairName.c_str(), 0, trv->getState(true).config.passKey, &out, &out_len)) {
       ESP_LOGW(TAG, "Failed to encrypt JOIN");
