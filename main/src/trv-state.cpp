@@ -38,13 +38,14 @@ static RTC_DATA_ATTR trv_state_t globalState = {
         .mqtt_server = "mqtt.local",
         .mqtt_port = 1883,
     },
-    .passKey = {0},
-    .sleep_time = 20,
-    .resolution = 1 // 10-bit temp resolution
+    .passKey = {0}, // Added in STATE_VERSION 3
+    .sleep_time = 20, // Added in STATE_VERSION 4
+    .resolution = 1 // // Added in STATE_VERSION 5
   }
 };
 
 const char *Trv::deviceName() { return globalState.config.mqttConfig.device_name; }
+const uint32_t Trv::stateVersion() { return globalState.version; }
 
 Trv::Trv() {
   fs = new TrvFS();
@@ -55,23 +56,24 @@ Trv::Trv() {
   ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
   if (r && r <= sizeof(state) && state.version < STATE_VERSION) {
     // Change a state v2 into a state v3
-    if (state.version == 2 && r == sizeof(state) - (sizeof(state.config.passKey) + sizeof(state.config.sleep_time))) {
+    if (state.version == 2 && r == sizeof(state) - (sizeof(state.config.passKey) + sizeof(state.config.sleep_time) + sizeof(state.config.resolution))) {
       state.version = 3;
       memset(state.config.passKey, 0, sizeof (state.config.passKey));
       r += sizeof(state.config.passKey);
     }
     ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
     // Change a state v3 into a state v4
-    if (state.version == 3 && r == sizeof(state) - sizeof(state.config.sleep_time)) {
+    if (state.version == 3 && r == sizeof(state) - (sizeof(state.config.sleep_time) + sizeof(state.config.resolution))) {
       state.version = STATE_VERSION;
       state.config.sleep_time = 20; // Default sleep time
       r += sizeof(state.config.sleep_time);
     }
+    ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
     // Change a state v4 into a state v5
     if (state.version == 4 && r == sizeof(state) - sizeof(state.config.resolution)) {
       state.version = STATE_VERSION;
       state.config.resolution = 1; // Default sleep time
-      r += sizeof(state.config.sleep_time);
+      r += sizeof(state.config.resolution);
     }
     ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
   }

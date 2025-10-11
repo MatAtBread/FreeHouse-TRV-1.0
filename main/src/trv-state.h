@@ -82,6 +82,7 @@ public:
   void setNetMode(net_mode_t mode, trv_mqtt_t *mqtt = NULL);
   void setSleepTime(int seconds);
   static const char* deviceName();
+  static const uint32_t stateVersion();
   static std::string asJson(const trv_state_t& state, signed int rssi = 0);
 };
 

@@ -1,6 +1,7 @@
 #include "esp-now.hpp"
 
 #include <string>
+#include <sstream>
 
 #include "../src/NetMsg.h"
 #include "esp_log.h"
@@ -244,24 +245,24 @@ void EspNet::checkMessages() {
   uint8_t *out;
   size_t out_len;
   {
-    std::string pairName = "";
-    pairName += Trv::deviceName();
-    pairName += PAIR_DELIM;
-    pairName += "FreeHouse" PAIR_DELIM "{\"model\":\"" ;
-    pairName += FREEHOUSE_MODEL;
-    pairName += "\",\"build\":\"";
-    pairName += versionDetail;
-    pairName += "\", \"writeable\":[";
+    //std::string pairName = "";
+    std::stringstream pairName;
+    pairName << Trv::deviceName()
+    << PAIR_DELIM "FreeHouse" PAIR_DELIM
+    "{"
+    "\"model\":\"" FREEHOUSE_MODEL "\","
+    "\"state_version\":" << Trv::stateVersion()<< ","
+    "\"build\":\"" << versionDetail << "\","
+    "\"writeable\":[";
 
     for (auto p = NetMsg::writeable; *p; p++) {
-      if (p != NetMsg::writeable) pairName += ",";
-      pairName += "\"";
-      pairName += *p;
-      pairName += "\"";
+      if (p != NetMsg::writeable) pairName << ",";
+      pairName << "\"" << *p << "\"";
     }
-    pairName += "]}";
+    pairName << "]}";
 
-    if (encrypt_bytes_with_passphrase(pairName.c_str(), 0, trv->getState(true).config.passKey, &out, &out_len)) {
+    ESP_LOGI(TAG, "Pairing as: %s", pairName.str().c_str());
+    if (encrypt_bytes_with_passphrase(pairName.str().c_str(), 0, trv->getState(true).config.passKey, &out, &out_len)) {
       ESP_LOGW(TAG, "Failed to encrypt JOIN");
       return;
     }
