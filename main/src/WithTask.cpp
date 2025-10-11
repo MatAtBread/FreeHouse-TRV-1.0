@@ -22,8 +22,8 @@ WithTask::~WithTask() {
   running = NULL;
 }
 
-WithTaskState WithTask::waitFotAllTasks(TickType_t delay) {
-  return anyTasks ? xEventGroupWaitBits(anyTasks, WITHTASK_FINISHED, pdFALSE, pdTRUE, delay) & WITHTASK_FINISHED ? FINISHED : TIMEOUT : NOT_STARTED;
+WithTaskState WithTask::waitForAllTasks(TickType_t delay) {
+  return anyTasks ? xEventGroupWaitBits(anyTasks, WITHTASK_FINISHED, pdFALSE, pdTRUE, delay) & WITHTASK_FINISHED ? FINISHED : TIMEOUT : NOT_RUNNING;
 }
 
 void WithTask::start() {

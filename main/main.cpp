@@ -71,7 +71,7 @@ void checkForMessages(Trv *trv) {
     // We defer checking the auto state if we received messages as they will have called checkAutoState()
     messgageChecks = 0;
   }
-  WithTask::waitFotAllTasks();
+  WithTask::waitForAllTasks();
   net->sendStateToHub(trv->getState(false));
   trv->saveState();
   delete net;
@@ -89,14 +89,14 @@ extern "C" void app_main() {
   GPIO::pinMode(LED_BUILTIN, OUTPUT);
   GPIO::digitalWrite(LED_BUILTIN, false);
 
-  // {
-  //   ESP_LOGI(TAG, "DEBUG DELAY START");
-  //   for (int i=0; i<50; i++) {
-  //     GPIO::digitalWrite(LED_BUILTIN, i & 1);
-  //     delay(100);
-  //   }
-  //   ESP_LOGI(TAG, "DEBUG DELAY END");
-  // }
+  {
+    ESP_LOGI(TAG, "DEBUG DELAY START");
+    for (int i=0; i<50; i++) {
+      GPIO::digitalWrite(LED_BUILTIN, i & 1);
+      delay(100);
+    }
+    ESP_LOGI(TAG, "DEBUG DELAY END");
+  }
 
   ESP_LOGI(TAG, "Build %s", versionDetail);
   ESP_LOGI(TAG, "Wake: %d reset: %d count: %d", wakeCause, resetCause, wakeCount);

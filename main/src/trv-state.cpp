@@ -12,7 +12,7 @@
 #define DTEMP 18     // D10
 #define BATTERY 0    // A0
 
-#define STATE_VERSION 4L
+#define STATE_VERSION 5L
 
 extern const char *systemModes[];
 
@@ -39,7 +39,8 @@ static RTC_DATA_ATTR trv_state_t globalState = {
         .mqtt_port = 1883,
     },
     .passKey = {0},
-    .sleep_time = 20
+    .sleep_time = 20,
+    .resolution = 1 // 10-bit temp resolution
   }
 };
 
@@ -66,6 +67,12 @@ Trv::Trv() {
       state.config.sleep_time = 20; // Default sleep time
       r += sizeof(state.config.sleep_time);
     }
+    // Change a state v4 into a state v5
+    if (state.version == 4 && r == sizeof(state) - sizeof(state.config.resolution)) {
+      state.version = STATE_VERSION;
+      state.config.resolution = 1; // Default sleep time
+      r += sizeof(state.config.sleep_time);
+    }
     ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
   }
 
@@ -78,6 +85,7 @@ Trv::Trv() {
     globalState.config.local_temperature_calibration = 0.0;
     globalState.config.current_heating_setpoint = 21;
     globalState.config.sleep_time = 20;
+    globalState.config.resolution = 1;
   } else {
     globalState.config = state.config;
   }
@@ -130,7 +138,8 @@ std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
     "\"current_heating_setpoint\":" << s.config.current_heating_setpoint << ","
     "\"local_temperature_calibration\":" << s.config.local_temperature_calibration << ","
     "\"system_mode\":\"" << systemModes[s.config.system_mode] << "\","
-    "\"sleep_time\":" << s.config.sleep_time <<
+    "\"sleep_time\":" << s.config.sleep_time << ","
+    "\"resolution\":" << (1.0 / (float)(1 << (s.config.resolution + 1))) <<
     "}";
 
   return json.str();
@@ -194,6 +203,16 @@ bool Trv::flatBattery() {
 
 bool Trv::is_charging() {
   return battery->is_charging();
+}
+
+void Trv::setTempResolution(uint8_t res) {
+  res &= 0x03;
+  if (globalState.config.resolution == res)
+    return;
+
+  globalState.config.resolution = res;
+  saveState();
+  tempSensor->setResolution(globalState.config.resolution);
 }
 
 void Trv::setTempCalibration(float temp) {

@@ -18,9 +18,9 @@ void taskWrapper(C* p) {
 }
 
 enum WithTaskState {
-  NOT_STARTED = 1,
-  TIMEOUT,
-  FINISHED
+  NOT_RUNNING = 1, // Either not yet started, or destroyed
+  TIMEOUT,        // The wait timed out
+  FINISHED        // The task finished
 };
 
 class WithTask {
@@ -33,13 +33,13 @@ protected:
   static int numRunning;
 
 public:
-  static WithTaskState waitFotAllTasks(TickType_t delay = portMAX_DELAY);
+  static WithTaskState waitForAllTasks(TickType_t delay = portMAX_DELAY);
 
   WithTask();
   virtual ~WithTask();
 
   WithTaskState wait(TickType_t delay = portMAX_DELAY) {
-    return running ? xEventGroupWaitBits(running, WITHTASK_FINISHED, pdFALSE, pdTRUE, delay) & WITHTASK_FINISHED ? FINISHED : TIMEOUT : NOT_STARTED;
+    return running ? xEventGroupWaitBits(running, WITHTASK_FINISHED, pdFALSE, pdTRUE, delay) & WITHTASK_FINISHED ? FINISHED : TIMEOUT : NOT_RUNNING;
   }
 
   // Pure virtual function to be implemented by derived classes

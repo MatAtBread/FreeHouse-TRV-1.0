@@ -9,7 +9,7 @@
 #include "string.h"
 #include "esp_wifi_types.h"
 #include "../src/board.h"
-#include "../../common/encryption/encryption.h";
+#include "../../common/encryption/encryption.h"
 
 #define PAIR_DELIM "\x1D"
 #define MACSTR "%02X:%02X:%02X:%02X:%02X:%02X"
@@ -51,8 +51,8 @@ void EspNet::sendStateToHub(const trv_state_t &state) {
 
   // TODO: Check if the state has changed since the last update
   auto json = trv->asJson(state, avgRssi);
-  ESP_LOGI(TAG, "Send state %s", json.c_str());
-  esp_now_send(hub, (uint8_t *)json.c_str(), json.length());
+  auto status = esp_now_send(hub, (uint8_t *)json.c_str(), json.length());
+  ESP_LOGI(TAG, "Send state [%u] %s %s(%u)", json.length(), json.c_str(), status == ESP_OK ? "ok" : "failed", status);
 }
 
 void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len) {
@@ -105,6 +105,8 @@ void EspNet::data_send_callback(const uint8_t *mac_addr, esp_now_send_status_t s
     ESP_LOGW(TAG, "send-now: " MACSTR " %s", MAC2STR(mac_addr), "failed - diconnecting");
     memcpy(hub, BROADCAST_ADDR, sizeof(hub));
     wifiChannel = 0;
+  } else {
+    ESP_LOGI(TAG, "send-now: " MACSTR " %s", MAC2STR(mac_addr), "ok");
   }
 }
 
@@ -112,8 +114,8 @@ EspNet *instance;
 static void boundRx(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len) {
   instance->data_receive_callback(esp_now_info, data, data_len);
 }
-static void boundTx(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  instance->data_send_callback(mac_addr, status);
+static void boundTx(const esp_now_send_info_t *tx_info, esp_now_send_status_t status) {
+  instance->data_send_callback(tx_info->des_addr, status);
 }
 
 EspNet::EspNet(Trv *trv) : trv(trv) {

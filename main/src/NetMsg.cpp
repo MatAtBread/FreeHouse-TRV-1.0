@@ -168,6 +168,7 @@ const char* NetMsg::writeable[] = {
     "local_temperature_calibration",
     "system_mode",
     "sleep_time",
+    "resolution",
     NULL
 };
 
@@ -182,6 +183,7 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
   cJSON *local_temperature_calibration = cJSON_GetObjectItem(root, writeable[1]);
   cJSON *system_mode = cJSON_GetObjectItem(root, writeable[2]);
   cJSON *sleep_time = cJSON_GetObjectItem(root, writeable[3]);
+  cJSON *resolution = cJSON_GetObjectItem(root, writeable[4]);
 
   if (cJSON_IsString(system_mode) && (system_mode->valuestring != NULL)) {
     for (esp_zb_zcl_thermostat_system_mode_t mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF;
@@ -211,6 +213,19 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
     ESP_LOGI(TAG, "sleep_time %d\n", sleep_time->valueint);
     messageCount++;
     trv->setSleepTime(sleep_time->valueint);
+  }
+
+  if (cJSON_IsNumber(resolution)) {
+    ESP_LOGI(TAG, "resolution %lf\n", resolution->valuedouble);
+    messageCount++;
+    int res = -1;
+    if (resolution->valuedouble == 0.5) res = 0;
+    else if (resolution->valuedouble == 0.25) res = 1;
+    else if (resolution->valuedouble == 0.125) res = 2;
+    else if (resolution->valuedouble == 0.0625) res = 3;
+    else res = 1;
+    if (res >= 0 && res <= 3)
+      trv->setTempResolution(res);
   }
 
   cJSON *ota = cJSON_GetObjectItem(root, "ota");

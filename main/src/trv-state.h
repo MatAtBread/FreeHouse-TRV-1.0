@@ -54,6 +54,7 @@ typedef struct trv_state_s
     trv_mqtt_t mqttConfig;
     ENCRYPTION_KEY passKey;
     int sleep_time; // in seconds, 1 to 120
+    uint8_t resolution; // 0=9-bit, 1=10-bit, 2=11-bit, 3=12-bit
   } config;
 } trv_state_t;
 
@@ -74,6 +75,7 @@ public:
   void setHeatingSetpoint(float temp);
   void setSystemMode(esp_zb_zcl_thermostat_system_mode_t mode);
   void setTempCalibration(float temp);
+  void setTempResolution(uint8_t res);
   void checkAutoState();
   bool flatBattery();
   bool is_charging();
