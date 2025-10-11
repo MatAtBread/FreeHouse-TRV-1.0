@@ -47,35 +47,26 @@ static RTC_DATA_ATTR trv_state_t globalState = {
 const char *Trv::deviceName() { return globalState.config.mqttConfig.device_name; }
 const uint32_t Trv::stateVersion() { return globalState.version; }
 
+#define UPDATE_STATE(number, member, default_expr) \
+  if (state.version == number && r == ((uint8_t *)&(globalState.member) - (uint8_t *)&(globalState))) { \
+    state.version +=1; \
+    r += sizeof(state.member); \
+    default_expr; \
+    ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);\
+  }
+
+
 Trv::Trv() {
   fs = new TrvFS();
 
-  // Try loading the config from the filesystem
   trv_state_t state;
+  // Try loading the config from the filesystem
   __SIZE_TYPE__ r = fs->read("/trv/state", &state, sizeof(state));
   ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
   if (r && r <= sizeof(state) && state.version < STATE_VERSION) {
-    // Change a state v2 into a state v3
-    if (state.version == 2 && r == sizeof(state) - (sizeof(state.config.passKey) + sizeof(state.config.sleep_time) + sizeof(state.config.resolution))) {
-      state.version = 3;
-      memset(state.config.passKey, 0, sizeof (state.config.passKey));
-      r += sizeof(state.config.passKey);
-    }
-    ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
-    // Change a state v3 into a state v4
-    if (state.version == 3 && r == sizeof(state) - (sizeof(state.config.sleep_time) + sizeof(state.config.resolution))) {
-      state.version = STATE_VERSION;
-      state.config.sleep_time = 20; // Default sleep time
-      r += sizeof(state.config.sleep_time);
-    }
-    ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
-    // Change a state v4 into a state v5
-    if (state.version == 4 && r == sizeof(state) - sizeof(state.config.resolution)) {
-      state.version = STATE_VERSION;
-      state.config.resolution = 1; // Default sleep time
-      r += sizeof(state.config.resolution);
-    }
-    ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
+    UPDATE_STATE(2, config.passKey, memset(state.config.passKey, 0, sizeof (state.config.passKey)));
+    UPDATE_STATE(3, config.sleep_time, state.config.sleep_time = 20); // Default sleep time
+    UPDATE_STATE(4, config.resolution, state.config.resolution = 1); // Default resolution 10-bit
   }
 
   if (r != sizeof (state) || state.version != STATE_VERSION) {
@@ -87,7 +78,7 @@ Trv::Trv() {
     globalState.config.local_temperature_calibration = 0.0;
     globalState.config.current_heating_setpoint = 21;
     globalState.config.sleep_time = 20;
-    globalState.config.resolution = 1;
+    globalState.config.resolution = 3;
   } else {
     globalState.config = state.config;
   }
@@ -141,7 +132,7 @@ std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
     "\"local_temperature_calibration\":" << s.config.local_temperature_calibration << ","
     "\"system_mode\":\"" << systemModes[s.config.system_mode] << "\","
     "\"sleep_time\":" << s.config.sleep_time << ","
-    "\"resolution\":" << (1.0 / (float)(1 << (s.config.resolution + 1))) <<
+    "\"resolution\":" << (0.5 / (float)(1 << s.config.resolution)) <<
     "}";
 
   return json.str();

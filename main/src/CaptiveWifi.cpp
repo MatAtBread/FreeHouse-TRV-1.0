@@ -209,7 +209,7 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
     "<tr><td>heating setpoint</td><td>\n"
     "<input type='range' min='10' max='30' value='" << state.config.current_heating_setpoint << "' step='0.25' oninput='this.nextElementSibling.textContent = this.value' onchange='window.location.href = \"/temp-\"+this.value' /><span>" << state.config.current_heating_setpoint << "°C</span></td></tr>\n"
     "<tr><td>calibration</td><td>" << state.config.local_temperature_calibration << "°C</td></tr>\n"
-    "<tr><td>resolution</td><td>" << (1.0 / (float)((1 << (state.config.resolution + 1)))) << "°C</td></tr>\n"
+    "<tr><td>resolution</td><td>" << (0.5 / (float)((1 << state.config.resolution))) << "°C</td></tr>\n"
     "<tr><td>Message comms mode</td><td>" << netModes[state.config.netMode] << "</td></tr>\n"
     "<tr><td>Sleep time (secs)</td>"
       "<td><input style='width:4em;' id='sleep_time' maxLength=4 value='" << state.config.sleep_time << "'>"
