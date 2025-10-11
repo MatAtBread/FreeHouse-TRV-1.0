@@ -45,12 +45,11 @@ static RTC_DATA_ATTR trv_state_t globalState = {
 };
 
 const char *Trv::deviceName() { return globalState.config.mqttConfig.device_name; }
-const uint32_t Trv::stateVersion() { return globalState.version; }
-
-#define UPDATE_STATE(number, member, default_expr) \
-  if (state.version == number && r == ((uint8_t *)&(globalState.member) - (uint8_t *)&(globalState))) { \
+uint32_t Trv::stateVersion() { return globalState.version; }
+const int i = sizeof(globalState.config.passKey);
+#define UPDATE_STATE(number, default_expr) \
+  if (state.version == number) { \
     state.version +=1; \
-    r += sizeof(state.member); \
     default_expr; \
     ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);\
   }
@@ -63,10 +62,11 @@ Trv::Trv() {
   // Try loading the config from the filesystem
   __SIZE_TYPE__ r = fs->read("/trv/state", &state, sizeof(state));
   ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
-  if (r && r <= sizeof(state) && state.version < STATE_VERSION) {
-    UPDATE_STATE(2, config.passKey, memset(state.config.passKey, 0, sizeof (state.config.passKey)));
-    UPDATE_STATE(3, config.sleep_time, state.config.sleep_time = 20); // Default sleep time
-    UPDATE_STATE(4, config.resolution, state.config.resolution = 1); // Default resolution 10-bit
+  if (r && (r <= sizeof(state) || state.version < STATE_VERSION)) {
+    UPDATE_STATE(2, memset(state.config.passKey, 0, sizeof (state.config.passKey)));
+    UPDATE_STATE(3, state.config.sleep_time = 20); // Default sleep time
+    UPDATE_STATE(4, state.config.resolution = 3); // Default resolution 10-bit
+    r = sizeof(state);
   }
 
   if (r != sizeof (state) || state.version != STATE_VERSION) {
