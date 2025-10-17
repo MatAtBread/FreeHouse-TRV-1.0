@@ -7,7 +7,7 @@
 #include "DallasOneWire/DallasOneWire.h"
 #include "MotorController.h"
 #include "fs.h"
-#include "../../common/encryption/encryption.h"
+#include "../common/encryption/encryption.h"
 
 //#include "../managed_components/espressif__esp-zigbee-lib/include/zcl/esp_zigbee_zcl_thermostat.h"
 typedef enum {

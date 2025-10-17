@@ -10,7 +10,7 @@
 #include "string.h"
 #include "esp_wifi_types.h"
 #include "../src/board.h"
-#include "../../common/encryption/encryption.h"
+#include "../common/encryption/encryption.h"
 
 #define PAIR_DELIM "\x1D"
 #define MACSTR "%02X:%02X:%02X:%02X:%02X:%02X"

@@ -2,7 +2,7 @@
 #define CAPTIVE_WIFI_H
 
 #include "trv-state.h"
-#include "../../common/captiveportal/wifi-captiveportal.h"
+#include "../common/captiveportal/wifi-captiveportal.h"
 
 class CaptivePortal: public HttpGetHandler {
  protected:

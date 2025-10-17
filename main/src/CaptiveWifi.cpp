@@ -2,7 +2,7 @@
 #include "CaptiveWifi.h"
 
 #include "esp_sleep.h"
-#include "../../common/gpio/gpio.hpp"
+#include "../common/gpio/gpio.hpp"
 
 #include <sstream>
 

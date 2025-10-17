@@ -1,5 +1,5 @@
 #include "../trv.h"
-#include "../../common/gpio/gpio.hpp"
+#include "../common/gpio/gpio.hpp"
 #include "BatteryMonitor.h"
 
 BatteryMonitor::BatteryMonitor(uint8_t adc, uint8_t chargeIoPin) : adc(adc), pin(chargeIoPin) {

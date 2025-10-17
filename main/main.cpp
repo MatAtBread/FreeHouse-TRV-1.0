@@ -9,7 +9,7 @@
 #include "esp_pm.h"
 #include "nvs_flash.h"
 
-#include "../common/gpio/gpio.hpp"
+#include "common/gpio/gpio.hpp"
 
 #include "src/WithTask.h"
 #include "src/CaptiveWifi.h"
@@ -20,8 +20,8 @@ extern "C" {
   const char *TAG = "TRV";
 }
 
-// Sample the touch ADC for up to 1050ms to see if it was touched for the whole second
-// bails returning false if it was released/not touched suring that period.
+// Sample the touch ADC for up to 1050ms to see if it was touched for the whole second.
+// Bails returning false if it was released/not touched during that period.
 bool touchButtonPressed() {
   for (int i = 0;; i++) {
     auto n = GPIO::analogRead(TOUCH_PIN);

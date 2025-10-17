@@ -1,5 +1,5 @@
 #include "board.h"
-#include "../../common/gpio/gpio.hpp"
+#include "../common/gpio/gpio.hpp"
 
 esp_err_t dev_wifi_init(const wifi_init_config_t *config) {
     GPIO::pinMode(3, OUTPUT);

@@ -1,5 +1,5 @@
 #include "../trv.h"
-#include "../../common/gpio/gpio.hpp"
+#include "../common/gpio/gpio.hpp"
 #include "MotorController.h"
 
 #define minMotorTime 1250
