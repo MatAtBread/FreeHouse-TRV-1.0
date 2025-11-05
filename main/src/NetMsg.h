@@ -21,6 +21,7 @@ class NetMsg {
         // Implemented by derived classes for each transport type
         virtual void checkMessages() = 0;
         virtual void sendStateToHub(const trv_state_t &) = 0;
+        virtual void unpair() = 0;
 };
 
 #endif

@@ -123,6 +123,41 @@ EspNet::EspNet(Trv *trv) : trv(trv) {
   ESP_LOGI(TAG, "Init EspNet");
   instance = this;
 
+  uint8_t *out;
+  size_t out_len;
+  {
+    //std::string pairName = "";
+    std::stringstream pairName;
+    pairName << Trv::deviceName()
+    << PAIR_DELIM "FreeHouse" PAIR_DELIM
+    "{"
+    "\"model\":\"" FREEHOUSE_MODEL "\","
+    "\"state_version\":" << Trv::stateVersion() << ","
+    "\"build\":\"" << versionDetail << "\","
+    "\"writeable\":[";
+
+    for (auto p = NetMsg::writeable; *p; p++) {
+      if (p != NetMsg::writeable) pairName << ",";
+      pairName << "\"" << *p << "\"";
+    }
+    pairName << "]}";
+
+    ESP_LOGI(TAG, "Pairing as: %s", pairName.str().c_str());
+    if (encrypt_bytes_with_passphrase(pairName.str().c_str(), 0, trv->getState(true).config.passKey, &out, &out_len)) {
+      ESP_LOGW(TAG, "Failed to encrypt JOIN");
+      return;
+    }
+  }
+
+  {
+    this->joinPhrase = (uint8_t *)malloc(out_len + 4);
+    *((uint32_t *)this->joinPhrase) = *((const uint32_t *)"JOIN");
+    memcpy(this->joinPhrase + 4, out, out_len);
+    free(out);
+    this->joinPhraseLen = out_len + 4;
+  }
+
+
   // 2. Configure WiFi
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   ESP_ERROR_CHECK(dev_wifi_init(&cfg));
@@ -144,6 +179,7 @@ EspNet::EspNet(Trv *trv) : trv(trv) {
 }
 
 EspNet::~EspNet() {
+  if (this->joinPhrase) free(this->joinPhrase);
   ESP_LOGI(TAG, "De-init radio");
   ESP_ERROR_CHECK(esp_now_deinit());
   ESP_ERROR_CHECK(esp_wifi_stop());
@@ -191,7 +227,7 @@ esp_err_t set_channel(uint8_t channel) {
   return e;
 }
 
-void pair_with_hub(uint8_t *out, size_t out_len) {
+void EspNet::pair_with_hub() {
   esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_HOME_CHANNEL_CHANGE, channel_change_event, NULL);
 
   add_peer(BROADCAST_ADDR, 0);
@@ -208,7 +244,7 @@ void pair_with_hub(uint8_t *out, size_t out_len) {
 
   for (uint8_t ch = country.schan; ch < country.schan + country.nchan; ch++) {
     set_channel(ch);
-    esp_now_send(BROADCAST_ADDR, out, out_len);
+    esp_now_send(BROADCAST_ADDR, this->joinPhrase, this->joinPhraseLen);
     delay(50);  // Wait for responses
   }
   pairing_info_t *lastPair = nextPair;
@@ -241,55 +277,24 @@ void pair_with_hub(uint8_t *out, size_t out_len) {
   esp_event_handler_unregister(WIFI_EVENT, WIFI_EVENT_HOME_CHANNEL_CHANGE, channel_change_event);
 }
 
+void EspNet::unpair() {
+  ESP_LOGI(TAG, "Unpairing from hub " MACSTR, MAC2STR(hub));
+  wifiChannel = 0;
+}
+
 void EspNet::checkMessages() {
-  uint8_t *out;
-  size_t out_len;
-  {
-    //std::string pairName = "";
-    std::stringstream pairName;
-    pairName << Trv::deviceName()
-    << PAIR_DELIM "FreeHouse" PAIR_DELIM
-    "{"
-    "\"model\":\"" FREEHOUSE_MODEL "\","
-    "\"state_version\":" << Trv::stateVersion()<< ","
-    "\"build\":\"" << versionDetail << "\","
-    "\"writeable\":[";
-
-    for (auto p = NetMsg::writeable; *p; p++) {
-      if (p != NetMsg::writeable) pairName << ",";
-      pairName << "\"" << *p << "\"";
-    }
-    pairName << "]}";
-
-    ESP_LOGI(TAG, "Pairing as: %s", pairName.str().c_str());
-    if (encrypt_bytes_with_passphrase(pairName.str().c_str(), 0, trv->getState(true).config.passKey, &out, &out_len)) {
-      ESP_LOGW(TAG, "Failed to encrypt JOIN");
-      return;
-    }
-  }
-
-  {
-    uint8_t *verbPhrase = (uint8_t *)malloc(out_len + 4);
-    *((uint32_t *)verbPhrase) = *((const uint32_t *)"JOIN");
-    memcpy(verbPhrase + 4, out, out_len);
-    free(out);
-    out = verbPhrase;
-    out_len += 4;
-  }
-
   if (wifiChannel == 0) {
-    pair_with_hub(out, out_len);
+    this->pair_with_hub();
   } else {
     ESP_LOGI(TAG, "Already paired with hub " MACSTR, MAC2STR(hub));
     esp_wifi_set_channel(wifiChannel, WIFI_SECOND_CHAN_NONE);
     // We send a PAIR here just to elicit any deferred messages
     add_peer(hub, wifiChannel);
-    esp_now_send(hub, out, out_len);
-    delay(50);  // Wait for responses
-    // If we were disconnected from the hub, try again (once)
-    if (wifiChannel == 0 || memcmp(hub, BROADCAST_ADDR, sizeof(hub)) == 0) {
-      pair_with_hub(out, out_len);
-    }
+    esp_now_send(hub, this->joinPhrase, this->joinPhraseLen);
   }
-  free(out);
+  delay(50);  // Wait for responses
+  // If we were disconnected from the hub, try again (once)
+  if (wifiChannel == 0 || memcmp(hub, BROADCAST_ADDR, sizeof(hub)) == 0) {
+    pair_with_hub();
+  }
 }

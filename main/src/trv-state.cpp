@@ -132,7 +132,8 @@ std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
     "\"local_temperature_calibration\":" << s.config.local_temperature_calibration << ","
     "\"system_mode\":\"" << systemModes[s.config.system_mode] << "\","
     "\"sleep_time\":" << s.config.sleep_time << ","
-    "\"resolution\":" << (0.5 / (float)(1 << s.config.resolution)) <<
+    "\"resolution\":" << (0.5 / (float)(1 << s.config.resolution)) << ","
+    "\"unpair\":false"
     "}";
 
   return json.str();
