@@ -2,8 +2,6 @@
 #define NETMSG_H
 #include "trv-state.h"
 
-#define FREEHOUSE_MODEL "TRV1"
-
 class NetMsg {
     protected:
         void processNetMessage(const char *json, Trv* trv);

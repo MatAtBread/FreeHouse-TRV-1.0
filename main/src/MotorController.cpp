@@ -80,7 +80,8 @@ void MotorController::task() {
 
   if (noloadBatt < 1000) {
     ESP_LOGW(TAG, "MotorController::task noloadBatt %d too low, stop", noloadBatt);
-    target = current = 50;
+    target = 50;
+    current = 50;
     return;
   }
 

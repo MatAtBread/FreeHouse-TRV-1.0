@@ -13,7 +13,7 @@ CaptivePortal::CaptivePortal(Trv* trv, const char *name) : trv(trv) {
   ESP_LOGI(TAG, "CaptivePortal::CaptivePortal");
   timeout = millis() + PORTAL_TTL;
   if (name == NULL || name[0] == 0)
-    name = "TRV1";
+    name = FREEHOUSE_MODEL;
   char ssid[33];
   snprintf(ssid, sizeof(ssid),"FreeHouse-%s",name);
   start_captive_portal(this, ssid);

@@ -9,7 +9,8 @@
 #include "fs.h"
 #include "../common/encryption/encryption.h"
 
-//#include "../managed_components/espressif__esp-zigbee-lib/include/zcl/esp_zigbee_zcl_thermostat.h"
+#define FREEHOUSE_MODEL "TRV1"
+
 typedef enum {
   ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF = 0x00,
   ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO = 0x01,

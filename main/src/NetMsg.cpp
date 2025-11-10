@@ -223,11 +223,10 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
     ESP_LOGI(TAG, "resolution %lf\n", resolution->valuedouble);
     messageCount++;
     int res = -1;
-    if (resolution->valuedouble == 0.5) res = 0;
-    else if (resolution->valuedouble == 0.25) res = 1;
-    else if (resolution->valuedouble == 0.125) res = 2;
-    else if (resolution->valuedouble == 0.0625) res = 3;
-    else res = 1;
+    if (resolution->valuedouble >= 0.5) res = 0;
+    else if (resolution->valuedouble >= 0.25) res = 1;
+    else if (resolution->valuedouble >= 0.125) res = 2;
+    else res = 3;
     if (res >= 0 && res <= 3)
       trv->setTempResolution(res);
   }
