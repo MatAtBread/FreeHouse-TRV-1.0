@@ -4,6 +4,8 @@
 
 #define minMotorTime 1250
 #define maxMotorTime 30000
+#define stallRatio 12 // implies below 12/13ths (9.09%) of noLoadBattery value
+
 
 MotorController::MotorController(uint8_t pinDir, uint8_t pinSleep, BatteryMonitor* battery, uint8_t &current) : pinDir(pinDir), pinSleep(pinSleep), battery(battery), current(current) {
   target = current;
@@ -106,7 +108,7 @@ void MotorController::task() {
       ESP_LOGI(TAG, "MotorController::task dir: %d, noloadBatt %d, batt %d, target %d, current %d, runTime: %lu", currentDir, noloadBatt, batt, target, current, runTime);
     if (currentDir == 0) {
       noloadBatt = (noloadBatt * 7 + batt) / 8;
-    } else if (runTime >= minMotorTime && batt < (noloadBatt * 7) / 8) {
+    } else if (runTime >= minMotorTime && batt < (noloadBatt * stallRatio) / (stallRatio + 1)) {
       // Motor has stalled
       ESP_LOGI(TAG, "Motor stalled batt %d, noLoadBatt %d", batt, noloadBatt);
       current = target;
