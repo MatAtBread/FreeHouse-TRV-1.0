@@ -56,6 +56,8 @@ typedef struct trv_state_s
     ENCRYPTION_KEY passKey;
     int sleep_time; // in seconds, 1 to 120
     uint8_t resolution; // 0=9-bit, 1=10-bit, 2=11-bit, 3=12-bit
+    int shunt_milliohms; // Resistance of the shunt resistor in milliohms
+    int motor_dc_milliohms; // Resistance of the motor winding in milliohms
   } config;
 } trv_state_t;
 
@@ -82,6 +84,8 @@ public:
   bool is_charging();
   void setNetMode(net_mode_t mode, trv_mqtt_t *mqtt = NULL);
   void setSleepTime(int seconds);
+  void setMotorParameters(int shunt_milliohms, int motor_dc_milliohms);
+
   static const char* deviceName();
   static uint32_t stateVersion();
   static std::string asJson(const trv_state_t& state, signed int rssi = 0);

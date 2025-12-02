@@ -12,9 +12,11 @@ class MotorController: public WithTask {
   volatile uint8_t target;
   volatile uint8_t& current;
   void setDirection(int dir);
+  int shuntMilliohms;
+  int motorDcMilliohms;
 
  public:
-  MotorController(uint8_t pinDir, uint8_t pinSleep, BatteryMonitor* battery, uint8_t& current);
+  MotorController(uint8_t pinDir, uint8_t pinSleep, BatteryMonitor* battery, uint8_t& current, int shuntMilliohms, int motorDcMilliohms);
   ~MotorController();
   void task();
   int getDirection();

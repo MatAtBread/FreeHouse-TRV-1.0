@@ -112,10 +112,9 @@ extern "C" void app_main() {
   ESP_ERROR_CHECK(esp_event_loop_create_default());
 
   // ESP_LOGI(TAG,"Heap %lu",esp_get_free_heap_size());
-  GPIO::digitalWrite(LED_BUILTIN, false);
   ESP_LOGI(TAG, "Create TRV");
   Trv *trv = new Trv();
-  uint32_t dreamTime;
+  uint64_t dreamTime = 1;
 
   if (trv->flatBattery() && !trv->is_charging()) {
     ESP_LOGI(TAG, "Battery exhausted");
@@ -129,13 +128,39 @@ extern "C" void app_main() {
     ESP_LOGI(TAG, "Check touch button/device name");
     if (!trv->deviceName()[0] || touchButtonPressed()) {
       ESP_LOGI(TAG, "Touch button pressed");
-      new CaptivePortal(trv, trv->deviceName());
-      // wait for max 5 mins. The CaptivePortal will restart the device under user control
-      for (int i = 0; i < 10 * 60; i++) {
-        GPIO::digitalWrite(LED_BUILTIN, i & 1);
-        delay(i & 1 ? 900 : 100);
+      CaptivePortal portal(trv, trv->deviceName());
+      switch (portal.exitStatus) {
+        case exit_status_t::TEST_MODE: {
+            delete trv;
+            ESP_LOGI(TAG, "Enter test mode");
+            // In test mode, we just cycle the valve and print the count
+            BatteryMonitor* battery = new BatteryMonitor(0, 20);
+            uint8_t currentPosition = 0;
+            MotorController* motor = new MotorController(17, 19, battery, currentPosition, 2000, 10000);
+            int count = 0;
+            while (true) {
+              ESP_LOGI(TAG, "Test cycle %d", count++);
+              GPIO::digitalWrite(LED_BUILTIN, count & 1 ? true : false);
+              motor->setValvePosition(count & 1 ? 100 : 0);
+              motor->wait();
+              delay(2000);
+              if (touchButtonPressed()) {
+                ESP_LOGI(TAG, "Exit test mode on touch");
+                esp_restart();
+              }
+            }
+          }
+          break;
+        case exit_status_t::POWER_OFF:
+          ESP_LOGI(TAG, "Power off requested");
+          dreamTime = 24 * 60 * 60 * 1000000UL;  // 1 day
+          break;
+        case exit_status_t::CLOSED:
+        case exit_status_t::NONE:
+        case exit_status_t::TIME_OUT:
+          dreamTime = 1;
+          break;
       }
-      dreamTime = 1;
     } else {
       checkForMessages(trv);
       dreamTime = trv->getState(true).config.sleep_time * 1000000UL;  // 20 seconds
@@ -150,7 +175,7 @@ extern "C" void app_main() {
 
   esp_sleep_enable_ext1_wakeup(1ULL << TOUCH_PIN, ESP_EXT1_WAKEUP_ANY_HIGH);
   esp_sleep_enable_timer_wakeup(dreamTime);
-  ESP_LOGI(TAG, "%s %lu", "deep sleep", dreamTime);
+  ESP_LOGI(TAG, "%s %llu", "deep sleep", dreamTime);
 
   esp_deep_sleep_start();
 }

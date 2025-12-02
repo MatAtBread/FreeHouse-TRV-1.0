@@ -12,7 +12,7 @@
 #define DTEMP 18     // D10
 #define BATTERY 0    // A0
 
-#define STATE_VERSION 5L
+#define STATE_VERSION 6L
 
 extern const char *systemModes[];
 
@@ -40,7 +40,9 @@ static RTC_DATA_ATTR trv_state_t globalState = {
     },
     .passKey = {0}, // Added in STATE_VERSION 3
     .sleep_time = 20, // Added in STATE_VERSION 4
-    .resolution = 1 // // Added in STATE_VERSION 5
+    .resolution = 1, // // Added in STATE_VERSION 5
+    .shunt_milliohms = 2000, // Added in STATE_VERSION 6
+    .motor_dc_milliohms = 10000, // Added in STATE_VERSION 6
   }
 };
 
@@ -66,6 +68,7 @@ Trv::Trv() {
     UPDATE_STATE(2, memset(state.config.passKey, 0, sizeof (state.config.passKey)));
     UPDATE_STATE(3, state.config.sleep_time = 20); // Default sleep time
     UPDATE_STATE(4, state.config.resolution = 3); // Default resolution 10-bit
+    UPDATE_STATE(5, state.config.shunt_milliohms = 2000; state.config.motor_dc_milliohms = 10000);
     r = sizeof(state);
   }
 
@@ -79,6 +82,8 @@ Trv::Trv() {
     globalState.config.current_heating_setpoint = 21;
     globalState.config.sleep_time = 20;
     globalState.config.resolution = 3;
+    globalState.config.shunt_milliohms = 2000;
+    globalState.config.motor_dc_milliohms = 10000;
   } else {
     globalState.config = state.config;
   }
@@ -86,7 +91,7 @@ Trv::Trv() {
   // Get the sensor values
   tempSensor = new DallasOneWire(DTEMP, globalState.sensors.sensor_temperature);
   battery = new BatteryMonitor(BATTERY, CHARGING);
-  motor = new MotorController(MOTOR, NSLEEP, battery, globalState.sensors.position);
+  motor = new MotorController(MOTOR, NSLEEP, battery, globalState.sensors.position, globalState.config.shunt_milliohms, globalState.config.motor_dc_milliohms);
   getState(true); // Lazily update temp
   ESP_LOGI(TAG,"Initial state: '%s' mqtt://%s:%d, wifi %s >> %s",
     globalState.config.mqttConfig.device_name,
@@ -133,7 +138,9 @@ std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
     "\"system_mode\":\"" << systemModes[s.config.system_mode] << "\","
     "\"sleep_time\":" << s.config.sleep_time << ","
     "\"resolution\":" << (0.5 / (float)(1 << s.config.resolution)) << ","
-    "\"unpair\":false"
+    "\"unpair\":false,"
+    "\"shunt_milliohms\":" << s.config.shunt_milliohms << ","
+    "\"motor_dc_milliohms\":" << s.config.motor_dc_milliohms <<
     "}";
 
   return json.str();
@@ -155,6 +162,16 @@ void Trv::resetValve() {
   // Once the valve is open, we can set the target position depending on the state
   ESP_LOGI(TAG, "Reset: valve opened, set system mode");
   setSystemMode(globalState.config.system_mode);
+}
+
+void Trv::setMotorParameters(int shunt_milliohms, int motor_dc_milliohms) {
+  if (shunt_milliohms > 0) {
+    globalState.config.shunt_milliohms = shunt_milliohms;
+  }
+  if (motor_dc_milliohms > 0) {
+    globalState.config.motor_dc_milliohms = motor_dc_milliohms;
+  }
+  saveState();
 }
 
 const trv_state_t& Trv::getState(bool fast) {

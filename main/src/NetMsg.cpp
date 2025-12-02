@@ -170,6 +170,8 @@ const char* NetMsg::writeable[] = {
     "sleep_time",
     "resolution",
     "unpair",
+    "shunt_milliohms",
+    "motor_dc_milliohms",
     NULL
 };
 
@@ -186,6 +188,10 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
   cJSON *sleep_time = cJSON_GetObjectItem(root, writeable[3]);
   cJSON *resolution = cJSON_GetObjectItem(root, writeable[4]);
   cJSON *unpair = cJSON_GetObjectItem(root, writeable[5]);
+  cJSON *shunt_milliohms = cJSON_GetObjectItem(root, writeable[6]);
+  cJSON *motor_dc_milliohms = cJSON_GetObjectItem(root, writeable[7]);
+
+  messageCount += 1;
 
   auto doUnpair = cJSON_IsTrue(unpair);
 
@@ -195,7 +201,6 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
          mode = (esp_zb_zcl_thermostat_system_mode_t)(mode + 1)) {
       if (!strcasecmp(systemModes[mode], system_mode->valuestring)) {
         ESP_LOGI(TAG, "system_mode %s (%d)\n", system_mode->valuestring, mode);
-        messageCount++;
         trv->setSystemMode(mode);
       }
     }
@@ -203,25 +208,21 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
 
   if (cJSON_IsNumber(current_heating_setpoint)) {
     ESP_LOGI(TAG, "current_heating_setpoint %f\n", current_heating_setpoint->valuedouble);
-    messageCount++;
     trv->setHeatingSetpoint((float)current_heating_setpoint->valuedouble);
   }
 
   if (cJSON_IsNumber(local_temperature_calibration)) {
     ESP_LOGI(TAG, "local_temperature_calibration %f\n", local_temperature_calibration->valuedouble);
-    messageCount++;
     trv->setTempCalibration((float)local_temperature_calibration->valuedouble);
   }
 
   if (cJSON_IsNumber(sleep_time)) {
     ESP_LOGI(TAG, "sleep_time %d\n", sleep_time->valueint);
-    messageCount++;
     trv->setSleepTime(sleep_time->valueint);
   }
 
   if (cJSON_IsNumber(resolution)) {
     ESP_LOGI(TAG, "resolution %lf\n", resolution->valuedouble);
-    messageCount++;
     int res = -1;
     if (resolution->valuedouble >= 0.5) res = 0;
     else if (resolution->valuedouble >= 0.25) res = 1;
@@ -229,6 +230,12 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
     else res = 3;
     if (res >= 0 && res <= 3)
       trv->setTempResolution(res);
+  }
+
+  auto shunt_value = cJSON_IsNumber(shunt_milliohms) ? shunt_milliohms->valueint : 0;
+  auto motor_value = cJSON_IsNumber(motor_dc_milliohms) ? motor_dc_milliohms->valueint : 0;
+  if (shunt_value || motor_value) {
+    trv->setMotorParameters(shunt_value, motor_value);
   }
 
   cJSON *ota = cJSON_GetObjectItem(root, "ota");

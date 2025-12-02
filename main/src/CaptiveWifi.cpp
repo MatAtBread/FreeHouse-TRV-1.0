@@ -11,23 +11,33 @@
 
 CaptivePortal::CaptivePortal(Trv* trv, const char *name) : trv(trv) {
   ESP_LOGI(TAG, "CaptivePortal::CaptivePortal");
+  exitStatus = NONE;
   timeout = millis() + PORTAL_TTL;
   if (name == NULL || name[0] == 0)
     name = FREEHOUSE_MODEL;
   char ssid[33];
   snprintf(ssid, sizeof(ssid),"FreeHouse-%s",name);
   start_captive_portal(this, ssid);
-  bool i = false;
-  while (millis() < timeout) {
+  while (millis() < timeout && exitStatus == NONE) {
+    GPIO::digitalWrite(LED_BUILTIN, true);
+    delay(100);
+    GPIO::digitalWrite(LED_BUILTIN, false);
     delay(250);
-    GPIO::digitalWrite(LED_BUILTIN, i);
-    i = !i;
+  }
+  if (exitStatus == NONE) {
+    exitStatus = TIME_OUT;
   }
   // Close the portal
   GPIO::digitalWrite(LED_BUILTIN, true);
-  esp_restart();
-};
+  delay(250);
+  stop_captive_portal();
+}
 
+void CaptivePortal::exitPortal(exit_status_t status) {
+  exitStatus = status;
+}
+
+static const char *root = "/";
 static const char *netModes [] = {"esp-now", "wifi-mqtt", "ZigBee"};
 const char *systemModes[] = {
     "off",
@@ -72,6 +82,14 @@ static void unencode(char *buf, const char *src, int size) {
 
 esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
   ESP_LOGI(TAG, "Serve %s", req->uri);
+  if (exitStatus != NONE) {
+      std::stringstream html;
+      httpd_resp_set_type(req, "text/html");
+      html << "<html><body>Closing..." << exitStatus << "</body></html>";
+      httpd_resp_send(req, html.str().c_str(), HTTPD_RESP_USE_STRLEN);
+      return ESP_OK;
+  }
+
   timeout = millis() + PORTAL_TTL;
 
   auto url = req->uri;
@@ -92,16 +110,17 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
   } else if (startsWith(url, "/sleep_time-")) {
     trv->setSleepTime(atoi(url + 12));
   } else if (startsWith(url, "/close")) {
-    timeout = 0;
+    exitPortal(CLOSED);
+  } else if (startsWith(url, "/test-mode")) {
+    exitPortal(TEST_MODE);
   } else if (startsWith(url, "/power-off")) {
-    esp_deep_sleep(60 * 60 * 1000000ULL);
+    exitPortal(POWER_OFF);
   } else if (startsWith(url, "/set-passphrase/")) {
       char passphrase[64];
       unencode(passphrase, req->uri + 16, sizeof(passphrase));
       auto passKey = trv->getState(false).config.passKey;
       if (strlen(passphrase) && get_key_for_passphrase(passphrase,(uint8_t *)passKey) == 0) {
         trv->saveState();
-        return ESP_OK;
       }
   } else if (isEspNow || startsWith(url, "/net-mqtt/")) {
     std::string mqConf = url + 9;
@@ -135,110 +154,121 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
     esp_restart();
   }
 
-  // Send back the current status
-  httpd_resp_set_type(req, "text/html");
+  if (strcmp(url,root)) {
+      httpd_resp_set_status(req, "302 Found");
+      httpd_resp_set_hdr(req, "Location", "/");
+      const char *resp_str = "<html><body>Redirecting</body></html>";
+      httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN );
+      return ESP_OK;
+  } else {
+    // Send back the current status
+    httpd_resp_set_type(req, "text/html");
 
-  static const char checked[] = "checked";
-  const auto state = trv->getState(false);
-  std::stringstream html;
+    static const char checked[] = "checked";
+    const auto state = trv->getState(false);
+    std::stringstream html;
 
-  html << "<!DOCTYPE html>\n"
-    "<html>\n"
-    "<head>\n"
-    "<meta charset=\"UTF-8\">\n"
-    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
-    "<title>FreeHouse-TRV</title>\n"
-    "<style>* { font-family: sans-serif; } button { display: block; margin: 0.5em; }</style>\n"
-    "<script>"
-    MULTILINE_STRING(
-      function ota_upload(elt) {
-        elt.disabled = true;
-        const input = document.getElementById('firmware');
-        if (!input.files.length || !(input.files[0] instanceof Blob)) {
-          alert('Please select a file.');
-          return;
+    html << "<!DOCTYPE html>\n"
+      "<html>\n"
+      "<head>\n"
+      "<meta charset=\"UTF-8\">\n"
+      "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+      "<title>FreeHouse-TRV</title>\n"
+      "<style>* { font-family: sans-serif; } button { display: block; margin: 0.5em; }</style>\n"
+      "<script>"
+      MULTILINE_STRING(
+        function ota_upload(elt) {
+          elt.disabled = true;
+          const input = document.getElementById('firmware');
+          if (!input.files.length || !(input.files[0] instanceof Blob)) {
+            alert('Please select a file.');
+            return;
+          }
+
+          const file = input.files[0];
+          const xhr = new XMLHttpRequest();
+
+          // Optional: Show progress in the console; replace with UI update as needed
+          xhr.upload.onprogress = function(event) {
+            if (event.lengthComputable) {
+              const percentComplete = (event.loaded / event.total) * 100;
+              elt.textContent = (`${percentComplete.toFixed(2)}% complete`);
+            } else {
+              elt.textContent = (`Uploaded ${event.loaded} bytes`);
+            }
+          };
+
+          xhr.onload = function() {
+            if (xhr.status === 200) {
+              alert('Upload successful!');
+            } else {
+              alert('Upload failed.');
+            }
+            elt.disabled = false;
+          };
+
+          xhr.onerror = function() {
+            alert('Upload error\n\n' + xhr.statusText);
+            elt.disabled = false;
+          };
+
+          xhr.open('POST', '/ota', true);
+          xhr.send(file);
         }
+        )
+      "</script>"
+      "</head>\n"
+      "<body>\n"
+      "<h1>FreeHouse-TRV</h1>\n"
+      "<input onclick='window.location.href = \"/mode-heat\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT ? checked : "") << "/>Heat\n"
+      "<input onclick='window.location.href = \"/mode-auto\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO ? checked : "") << "/>Auto\n"
+      "<input onclick='window.location.href = \"/mode-off\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF ? checked : "") << "/>Off\n"
+      "<input onclick='window.location.href = \"/mode-sleep\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP ? checked : "") << "/>Sleep\n"
+      "<table>\n"
+      "<tr><td>syetem mode</td><td>" << systemModes[state.config.system_mode] << '(' << state.config.system_mode << ")</td></tr>\n"
+      "<tr><td>local_temperature</td><td>" << state.sensors.local_temperature << " °C</td></tr>\n"
+      "<tr><td>sensor_temperature</td><td>" << state.sensors.sensor_temperature << " °C</td></tr>\n"
+      "<tr><td>battery (raw)</td><td>" << state.sensors.battery_raw << "mV</td></tr>\n"
+      "<tr><td>battery %</td><td>" << (int)state.sensors.battery_percent << "%</td></tr>\n"
+      "<tr><td>power source</td><td>" << (state.sensors.is_charging ? "charging" : "battery power") << "</td></tr>\n"
+      "<tr><td>valve</td><td>" << (int)state.sensors.position << "</td></tr>\n"
+      "<tr><td>heating setpoint</td><td>\n"
+      "<input type='range' min='10' max='30' value='" << state.config.current_heating_setpoint << "' step='0.25' oninput='this.nextElementSibling.textContent = this.value' onchange='window.location.href = \"/temp-\"+this.value' /><span>" << state.config.current_heating_setpoint << "°C</span></td></tr>\n"
+      "<tr><td>calibration</td><td>" << state.config.local_temperature_calibration << "°C</td></tr>\n"
+      "<tr><td>resolution</td><td>" << (0.5 / (float)((1 << state.config.resolution))) << "°C</td></tr>\n"
+      "<tr><td>Shunt</td><td>" << (state.config.shunt_milliohms) << "mΩ</td></tr>\n"
+      "<tr><td>Motor</td><td>" << (state.config.motor_dc_milliohms) << "mΩ</td></tr>\n"
+      "<tr><td>Message comms mode</td><td>" << netModes[state.config.netMode] << "</td></tr>\n"
+      "<tr><td>Sleep time (secs)</td>"
+        "<td><input style='width:4em;' id='sleep_time' maxLength=4 value='" << state.config.sleep_time << "'>"
+          "<button onclick='window.location.href=\"/sleep_time-\"+Number(document.getElementById(\"sleep_time\")?.value || 20)'>Set</button>"
+        "</td>"
+      "</tr>\n"
+      "<tr><td>MQTT/ESP-NOW device name</td><td><input id='device' value=\"" << state.config.mqttConfig.device_name << "\"></td></tr>\n"
+      "<tr style='display:none;'><td>WiFi SSID</td><td><input id='ssid' value=\"" << state.config.mqttConfig.wifi_ssid << "\"></td></tr>\n"
+      "<tr style='display:none;'><td>WiFi password</td><td><input id='pwd' value=\"" << state.config.mqttConfig.wifi_pwd << "\"></td></tr>\n"
+      "<tr style='display:none;'><td>MQTT server</td><td><input id='mqtt' value=\"" << state.config.mqttConfig.mqtt_server << ':' << state.config.mqttConfig.mqtt_port << "\"></td></tr>\n"
+      "</table>\n"
+      "<button onclick='window.location.href = \"/net-esp/\"+encodeURIComponent(\"device,ssid,pwd,mqtt\".split(\",\").map(id => document.getElementById(id).value).join(\"-\"))'>Enable ESP-NOW</button>\n"
+      // "<button onclick='window.location.href = \"/net-mqtt/\"+encodeURIComponent(\"device,ssid,pwd,mqtt\".split(\",\").map(id => document.getElementById(id).value).join(\"-\"))'>Enable MQTT</button>\n"
+      // "<button onclick='window.location.href = \"/net-zigbee\"'>Disable MQTT</button>\n"
 
-        const file = input.files[0];
-        const xhr = new XMLHttpRequest();
+      "<button onclick=\"const n = prompt('Enter the new FreeHouse network passphrase'); if (n) fetch('/set-passphrase/'+encodeURIComponent(n));\">Set FreeHouse network name</button>"
 
-        // Optional: Show progress in the console; replace with UI update as needed
-        xhr.upload.onprogress = function(event) {
-          if (event.lengthComputable) {
-            const percentComplete = (event.loaded / event.total) * 100;
-            elt.textContent = (`${percentComplete.toFixed(2)}% complete`);
-          } else {
-            elt.textContent = (`Uploaded ${event.loaded} bytes`);
-          }
-        };
+      "<button onclick='window.location.href = \"/close\"'>Close</button>\n"
+      "<button onclick='window.location.href = \"/test-mode\"'>Test mode</button>\n"
+      "<button onclick='window.location.href = \"/power-off\"'>Power Off</button>\n"
 
-        xhr.onload = function() {
-          if (xhr.status === 200) {
-            alert('Upload successful!');
-          } else {
-            alert('Upload failed.');
-          }
-          elt.disabled = false;
-        };
+      "<h2>OTA Update</h2>"
+      "<div>"
+      "  <input type='file' id='firmware'>"
+      "  <button onclick='ota_upload(this)'>Update</button>"
+      "</div>"
+      "<div>Current: " << versionDetail << "</div>"
+      "</body></html>";
 
-        xhr.onerror = function() {
-          alert('Upload error\n\n' + xhr.statusText);
-          elt.disabled = false;
-        };
+    httpd_resp_send(req, html.str().c_str(), HTTPD_RESP_USE_STRLEN);
 
-        xhr.open('POST', '/ota', true);
-        xhr.send(file);
-      }
-      )
-    "</script>"
-    "</head>\n"
-    "<body>\n"
-    "<h1>FreeHouse-TRV</h1>\n"
-    "<input onclick='window.location.href = \"/mode-heat\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT ? checked : "") << "/>Heat\n"
-    "<input onclick='window.location.href = \"/mode-auto\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO ? checked : "") << "/>Auto\n"
-    "<input onclick='window.location.href = \"/mode-off\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF ? checked : "") << "/>Off\n"
-    "<input onclick='window.location.href = \"/mode-sleep\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP ? checked : "") << "/>Sleep\n"
-    "<table>\n"
-    "<tr><td>syetem mode</td><td>" << systemModes[state.config.system_mode] << '(' << state.config.system_mode << ")</td></tr>\n"
-    "<tr><td>local_temperature</td><td>" << state.sensors.local_temperature << " °C</td></tr>\n"
-    "<tr><td>sensor_temperature</td><td>" << state.sensors.sensor_temperature << " °C</td></tr>\n"
-    "<tr><td>battery (raw)</td><td>" << state.sensors.battery_raw << "mV</td></tr>\n"
-    "<tr><td>battery %</td><td>" << (int)state.sensors.battery_percent << "%</td></tr>\n"
-    "<tr><td>power source</td><td>" << (state.sensors.is_charging ? "charging" : "battery power") << "</td></tr>\n"
-    "<tr><td>valve</td><td>" << (int)state.sensors.position << "</td></tr>\n"
-    "<tr><td>heating setpoint</td><td>\n"
-    "<input type='range' min='10' max='30' value='" << state.config.current_heating_setpoint << "' step='0.25' oninput='this.nextElementSibling.textContent = this.value' onchange='window.location.href = \"/temp-\"+this.value' /><span>" << state.config.current_heating_setpoint << "°C</span></td></tr>\n"
-    "<tr><td>calibration</td><td>" << state.config.local_temperature_calibration << "°C</td></tr>\n"
-    "<tr><td>resolution</td><td>" << (0.5 / (float)((1 << state.config.resolution))) << "°C</td></tr>\n"
-    "<tr><td>Message comms mode</td><td>" << netModes[state.config.netMode] << "</td></tr>\n"
-    "<tr><td>Sleep time (secs)</td>"
-      "<td><input style='width:4em;' id='sleep_time' maxLength=4 value='" << state.config.sleep_time << "'>"
-        "<button onclick='window.location.href=\"/sleep_time-\"+Number(document.getElementById(\"sleep_time\")?.value || 20)'>Set</button>"
-      "</td>"
-    "</tr>\n"
-    "<tr><td>MQTT/ESP-NOW device name</td><td><input id='device' value=\"" << state.config.mqttConfig.device_name << "\"></td></tr>\n"
-    "<tr style='display:none;'><td>WiFi SSID</td><td><input id='ssid' value=\"" << state.config.mqttConfig.wifi_ssid << "\"></td></tr>\n"
-    "<tr style='display:none;'><td>WiFi password</td><td><input id='pwd' value=\"" << state.config.mqttConfig.wifi_pwd << "\"></td></tr>\n"
-    "<tr style='display:none;'><td>MQTT server</td><td><input id='mqtt' value=\"" << state.config.mqttConfig.mqtt_server << ':' << state.config.mqttConfig.mqtt_port << "\"></td></tr>\n"
-    "</table>\n"
-    "<button onclick='window.location.href = \"/net-esp/\"+encodeURIComponent(\"device,ssid,pwd,mqtt\".split(\",\").map(id => document.getElementById(id).value).join(\"-\"))'>Enable ESP-NOW</button>\n"
-    // "<button onclick='window.location.href = \"/net-mqtt/\"+encodeURIComponent(\"device,ssid,pwd,mqtt\".split(\",\").map(id => document.getElementById(id).value).join(\"-\"))'>Enable MQTT</button>\n"
-    // "<button onclick='window.location.href = \"/net-zigbee\"'>Disable MQTT</button>\n"
-
-    "<button onclick=\"const n = prompt('Enter the new FreeHouse network passphrase'); if (n) fetch('/set-passphrase/'+encodeURIComponent(n));\">Set FreeHouse network name</button>"
-
-    "<button onclick='window.location.href = \"/close\"'>Close</button>\n"
-    // "<button onclick='window.location.href = \"/power-off\"'>Power Off</button>\n"
-
-    "<h2>OTA Update</h2>"
-    "<div>"
-    "  <input type='file' id='firmware'>"
-    "  <button onclick='ota_upload(this)'>Update</button>"
-    "</div>"
-    "<div>Current: " << versionDetail << "</div>"
-    "</body></html>";
-
-  httpd_resp_send(req, html.str().c_str(), HTTPD_RESP_USE_STRLEN);
-
-  return ESP_OK;
+    return ESP_OK;
+  }
 }

@@ -4,10 +4,10 @@
 
 #define minMotorTime 1250
 #define maxMotorTime 30000
-#define stallRatio 12 // implies below 12/13ths (9.09%) of noLoadBattery value
 
 
-MotorController::MotorController(uint8_t pinDir, uint8_t pinSleep, BatteryMonitor* battery, uint8_t &current) : pinDir(pinDir), pinSleep(pinSleep), battery(battery), current(current) {
+MotorController::MotorController(uint8_t pinDir, uint8_t pinSleep, BatteryMonitor* battery, uint8_t &current, int shuntMilliohms, int motorDcMilliohms) :
+  pinDir(pinDir), pinSleep(pinSleep), battery(battery), current(current), shuntMilliohms(shuntMilliohms), motorDcMilliohms(motorDcMilliohms) {
   target = current;
   GPIO::pinMode(pinSleep, OUTPUT);
   GPIO::pinMode(pinDir, OUTPUT);
@@ -67,6 +67,13 @@ uint8_t MotorController::getValvePosition() {
   return current;
 }
 
+static int motorResistence(int Vmotor, int Vbatt, int Rshunt) {
+  const auto deltaV = Vbatt - Vmotor;
+  if (deltaV <= 25)
+    return 1000000; // Disconnected
+  return Vmotor * Rshunt / deltaV;
+}
+
 // The task depends on the members target & getDirection(), which is why we start it when any of them change
 void MotorController::task() {
   // Get a stable battery level
@@ -103,26 +110,35 @@ void MotorController::task() {
     }
 
     auto batt = battery->getValue();
+    auto Rmotor = motorResistence(batt, noloadBatt, shuntMilliohms);
     auto runTime = startTime ? now - startTime : 0;
     if (startTime)
-      ESP_LOGI(TAG, "MotorController::task dir: %d, noloadBatt %d, batt %d, target %d, current %d, runTime: %lu", currentDir, noloadBatt, batt, target, current, runTime);
+      ESP_LOGI(TAG, "MotorController::task dir: %d, noloadBatt %d, batt %d, Rmotor %d, target %d, current %d, runTime: %lu", currentDir, noloadBatt, batt, Rmotor, target, current, runTime);
     if (currentDir == 0) {
       noloadBatt = (noloadBatt * 7 + batt) / 8;
-    } else if (runTime >= minMotorTime && batt < (noloadBatt * stallRatio) / (stallRatio + 1)) {
-      // Motor has stalled
-      ESP_LOGI(TAG, "Motor stalled batt %d, noLoadBatt %d", batt, noloadBatt);
-      current = target;
-      setDirection(0);
-      startTime = 0;
-    } else if (runTime > maxMotorTime) {
-      // Motor has timed-out
-      ESP_LOGI(TAG, "Motor timed-out");
-      target = 50;
-      current = 50;
-      startTime = 0;
-      setDirection(0);
     } else {
-      current = 50 + currentDir;
+      if (Rmotor >= 100000) {
+        ESP_LOGI(TAG, "Motor disconnected");
+        target = 50;
+        current = 50;
+        startTime = 0;
+        setDirection(0);
+      } else if (runTime >= minMotorTime && Rmotor < motorDcMilliohms) {
+        // Motor has stalled
+        ESP_LOGI(TAG, "Motor stalled: batt %d, noLoadBatt %d, Rmotor %d", batt, noloadBatt, Rmotor);
+        current = target;
+        setDirection(0);
+        startTime = 0;
+      } else if (runTime > maxMotorTime) {
+        // Motor has timed-out
+        ESP_LOGI(TAG, "Motor timed-out");
+        target = 50;
+        current = 50;
+        startTime = 0;
+        setDirection(0);
+      } else {
+        current = 50 + currentDir;
+      }
     }
     if (getDirection() || target != current)
       delay(250);
