@@ -113,10 +113,10 @@ void MotorController::task() {
     auto Rmotor = motorResistence(batt, noloadBatt, shuntMilliohms);
     auto runTime = startTime ? now - startTime : 0;
     if (startTime)
-      ESP_LOGI(TAG, "MotorController::task dir: %d, noloadBatt %f, batt %f, Rmotor %f (%f, I=%fma), target %d, current %d, runTime: %lu",
+      ESP_LOGI(TAG, "MotorController::task dir: %d, noloadBatt %f, batt %f, Rmotor %f (%f, I=%fmA), target %d, current %d, runTime: %lu",
         currentDir, noloadBatt / 1000.0, batt / 1000.0,
         Rmotor / 1000.0, motorDcMilliohms / 1000.0,
-        /* I = V / R */ (float)batt / (float)(Rmotor + shuntMilliohms) * 1000.0,
+        /* I = V / R */ (float)batt / (float)Rmotor * 1000.0,
         target, current, runTime);
     if (currentDir == 0) {
       noloadBatt = (noloadBatt * 7 + batt) / 8;
