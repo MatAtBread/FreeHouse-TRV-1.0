@@ -3,12 +3,14 @@
 #include <string>
 #include <sstream>
 
-#include "../src/NetMsg.h"
 #include "esp_log.h"
 #include "esp_sleep.h"
 #include "esp_wifi.h"
 #include "string.h"
 #include "esp_wifi_types.h"
+
+#include "helpers.h"
+#include "../src/NetMsg.h"
 #include "../src/board.h"
 #include "../common/encryption/encryption.h"
 
@@ -265,7 +267,7 @@ void EspNet::pair_with_hub() {
       if (p != best && memcmp(p->mac, best->mac, sizeof(MACAddr))) {
         add_peer(p->mac, p->rx.channel);
         set_channel(p->rx.channel);
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_now_send(p->mac, (const uint8_t *)"NACK", 5));
+        ERR_BACKTRACE(esp_now_send(p->mac, (const uint8_t *)"NACK", 5));
         ESP_LOGI(TAG, "Nack'd hub " MACSTR " channel %d+%d, rssi %d", MAC2STR(p->mac), p->rx.channel, p->rx.second, p->rx.rssi);
       }
     }

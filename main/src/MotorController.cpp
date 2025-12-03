@@ -69,8 +69,8 @@ uint8_t MotorController::getValvePosition() {
 
 static int motorResistence(int Vmotor, int Vbatt, int Rshunt) {
   const auto deltaV = Vbatt - Vmotor;
-  if (deltaV <= 25)
-    return 1000000; // Disconnected
+  if (deltaV < 1)
+    return 1000;//000; // Disconnected
   return Vmotor * Rshunt / deltaV;
 }
 
@@ -88,14 +88,14 @@ void MotorController::task() {
   }
 
   if (noloadBatt < 1000) {
-    ESP_LOGW(TAG, "MotorController::task noloadBatt %d too low, stop", noloadBatt);
+    ESP_LOGW(TAG, "MotorController::task noloadBatt %f too low, stop", noloadBatt / 1000.0);
     target = 50;
     current = 50;
     return;
   }
 
   unsigned long startTime = 0;
-  ESP_LOGI(TAG, "MotorController::task start noloadBatt %d, target %d, current %d", noloadBatt, target, current);
+  ESP_LOGI(TAG, "MotorController::task start noloadBatt %f, target %d, current %d", noloadBatt / 1000.0, target, current);
 
   while (true) {
     auto now = millis();
@@ -113,11 +113,15 @@ void MotorController::task() {
     auto Rmotor = motorResistence(batt, noloadBatt, shuntMilliohms);
     auto runTime = startTime ? now - startTime : 0;
     if (startTime)
-      ESP_LOGI(TAG, "MotorController::task dir: %d, noloadBatt %d, batt %d, Rmotor %d, target %d, current %d, runTime: %lu", currentDir, noloadBatt, batt, Rmotor, target, current, runTime);
+      ESP_LOGI(TAG, "MotorController::task dir: %d, noloadBatt %f, batt %f, Rmotor %f (%f, I=%fma), target %d, current %d, runTime: %lu",
+        currentDir, noloadBatt / 1000.0, batt / 1000.0,
+        Rmotor / 1000.0, motorDcMilliohms / 1000.0,
+        /* I = V / R */ (float)batt / (float)(Rmotor + shuntMilliohms) * 1000.0,
+        target, current, runTime);
     if (currentDir == 0) {
       noloadBatt = (noloadBatt * 7 + batt) / 8;
     } else {
-      if (Rmotor >= 100000) {
+      if (Rmotor >= 1000000 /* 1k ohm */) {
         ESP_LOGI(TAG, "Motor disconnected");
         target = 50;
         current = 50;
@@ -125,7 +129,7 @@ void MotorController::task() {
         setDirection(0);
       } else if (runTime >= minMotorTime && Rmotor < motorDcMilliohms) {
         // Motor has stalled
-        ESP_LOGI(TAG, "Motor stalled: batt %d, noLoadBatt %d, Rmotor %d", batt, noloadBatt, Rmotor);
+        ESP_LOGI(TAG, "Motor stalled: batt %f, noLoadBatt %f, Rmotor %f", batt / 1000.0, noloadBatt / 1000.0, Rmotor / 1000.0);
         current = target;
         setDirection(0);
         startTime = 0;

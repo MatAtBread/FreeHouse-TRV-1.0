@@ -131,16 +131,21 @@ extern "C" void app_main() {
       CaptivePortal portal(trv, trv->deviceName());
       switch (portal.exitStatus) {
         case exit_status_t::TEST_MODE: {
+            const auto state = trv->getState(true);
             delete trv;
             ESP_LOGI(TAG, "Enter test mode");
             // In test mode, we just cycle the valve and print the count
             BatteryMonitor* battery = new BatteryMonitor(0, 20);
             uint8_t currentPosition = 0;
-            MotorController* motor = new MotorController(17, 19, battery, currentPosition, 2000, 10000);
+            MotorController* motor = new MotorController(17, 19, battery, currentPosition, state.config.shunt_milliohms, state.config.motor_dc_milliohms);
             int count = 0;
             while (true) {
               ESP_LOGI(TAG, "Test cycle %d", count++);
               GPIO::digitalWrite(LED_BUILTIN, count & 1 ? true : false);
+
+              float temp;
+              DallasOneWire tempSensor(18, temp);
+
               motor->setValvePosition(count & 1 ? 100 : 0);
               motor->wait();
               delay(2000);

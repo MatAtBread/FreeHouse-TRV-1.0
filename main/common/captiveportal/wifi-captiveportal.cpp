@@ -15,6 +15,9 @@
 
 #include "nvs_flash.h"
 #include "esp_wifi.h"
+
+#include "helpers.h"
+
 #include "../../main/src/board.h"
 #include "esp_netif.h"
 #include "lwip/inet.h"
@@ -95,9 +98,9 @@ static void dhcp_set_captiveportal_url(void) {
     esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
 
     // set the DHCP option 114
-    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_stop(netif));
+    ERR_BACKTRACE(esp_netif_dhcps_stop(netif));
     ESP_ERROR_CHECK(esp_netif_dhcps_option(netif, ESP_NETIF_OP_SET, ESP_NETIF_CAPTIVEPORTAL_URI, captiveportal_uri, strlen(captiveportal_uri)));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_start(netif));
+    ERR_BACKTRACE(esp_netif_dhcps_start(netif));
 }
 #endif // CONFIG_ESP_ENABLE_DHCP_CAPTIVEPORTAL
 

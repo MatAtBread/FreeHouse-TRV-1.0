@@ -4,6 +4,8 @@
 #include "hal/gpio_types.h"
 #include <freertos/FreeRTOS.h>
 
+#include "helpers.h"
+
 #include "gpio.hpp"
 
 extern "C" const char* TAG;
@@ -71,7 +73,7 @@ int GPIO::analogRead(int pin, adc_atten_t atten, bool calibrated) {
   // Initialize adc_handle if it hasn't been initialized yet
   if (!adc_handle) {
     adc_oneshot_unit_init_cfg_t unit_config = { ADC_UNIT_1, ADC_DIGI_CLK_SRC_DEFAULT, ADC_ULP_MODE_DISABLE };
-    if (ESP_ERROR_CHECK_WITHOUT_ABORT(adc_oneshot_new_unit(&unit_config, &adc_handle)) != ESP_OK) {
+    if (ERR_BACKTRACE(adc_oneshot_new_unit(&unit_config, &adc_handle)) != ESP_OK) {
       ESP_LOGE(TAG, "Failed to create ADC unit for pin %d", pin);
       xSemaphoreGive(adc_mutex); // Release the mutex before returning
       return -1;
@@ -84,7 +86,7 @@ int GPIO::analogRead(int pin, adc_atten_t atten, bool calibrated) {
     .bitwidth = ADC_BITWIDTH_12,
   };
 
-  if (ESP_ERROR_CHECK_WITHOUT_ABORT(adc_oneshot_config_channel(adc_handle, (adc_channel_t)pin, &config)) != ESP_OK) {
+  if (ERR_BACKTRACE(adc_oneshot_config_channel(adc_handle, (adc_channel_t)pin, &config)) != ESP_OK) {
     ESP_LOGE(TAG, "Failed to configure ADC channel for pin %d", pin);
     xSemaphoreGive(adc_mutex); // Release the mutex before returning
     return -1;
@@ -99,7 +101,7 @@ int GPIO::analogRead(int pin, adc_atten_t atten, bool calibrated) {
   }
 
   int adc_reading = 0;
-  if (ESP_ERROR_CHECK_WITHOUT_ABORT(adc_oneshot_read(adc_handle, (adc_channel_t)pin, &adc_reading)) != ESP_OK) {
+  if (ERR_BACKTRACE(adc_oneshot_read(adc_handle, (adc_channel_t)pin, &adc_reading)) != ESP_OK) {
     ESP_LOGE(TAG, "Failed to read ADC channel for pin %d", pin);
     xSemaphoreGive(adc_mutex); // Release the mutex before returning
     return -1;

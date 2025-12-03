@@ -4,6 +4,9 @@
 #include "esp_ota_ops.h"
 #include "esp_http_client.h"
 #endif
+
+#include "helpers.h"
+
 #include "wifi-sta.hpp"
 
 #include "string.h"
@@ -56,14 +59,14 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
                     lastPercent = percent;
                 }
                 GPIO::digitalWrite(LED_BUILTIN, !GPIO::digitalRead(LED_BUILTIN));
-                ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ota_write(update->handle, evt->data, evt->data_len));
+                ERR_BACKTRACE(esp_ota_write(update->handle, evt->data, evt->data_len));
             }
             break;
 
         case HTTP_EVENT_ON_FINISH:
             ESP_LOGI(TAG, "HTTP_EVENT_ON_FINISH");
-            ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ota_end(update->handle));
-            ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ota_set_boot_partition(update->partition));
+            ERR_BACKTRACE(esp_ota_end(update->handle));
+            ERR_BACKTRACE(esp_ota_set_boot_partition(update->partition));
             esp_restart();
             break;
 
@@ -134,7 +137,7 @@ NetMsg::~NetMsg() {
       SoftWatchDog woof(150);
       const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
       esp_ota_handle_t update_handle = 0;
-      ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &update_handle));
+      ERR_BACKTRACE(esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &update_handle));
       ota_data_t od = {.handle = update_handle, .partition = update_partition};
       config.user_data = &od;
 

@@ -20,9 +20,9 @@ CaptivePortal::CaptivePortal(Trv* trv, const char *name) : trv(trv) {
   start_captive_portal(this, ssid);
   while (millis() < timeout && exitStatus == NONE) {
     GPIO::digitalWrite(LED_BUILTIN, true);
-    delay(100);
+    delay(125);
     GPIO::digitalWrite(LED_BUILTIN, false);
-    delay(250);
+    delay(125);
   }
   if (exitStatus == NONE) {
     exitStatus = TIME_OUT;
