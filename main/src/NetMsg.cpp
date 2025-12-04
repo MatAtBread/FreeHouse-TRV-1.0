@@ -181,9 +181,10 @@ const char* NetMsg::writeable[] = {
 void NetMsg::processNetMessage(const char *json, Trv *trv) {
   cJSON *root = cJSON_Parse(json);
   if (!root) {
-    ESP_LOGW(TAG, "JSON parse failed: %s\n", json);
+    ESP_LOGW(TAG, "JSON parse failed: %s", json);
     return;
   }
+  ESP_LOGI(TAG, "JSON message: %s", json);
 
   cJSON *current_heating_setpoint = cJSON_GetObjectItem(root, writeable[0]);
   cJSON *local_temperature_calibration = cJSON_GetObjectItem(root, writeable[1]);
@@ -194,8 +195,6 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
   cJSON *shunt_milliohms = cJSON_GetObjectItem(root, writeable[6]);
   cJSON *motor_dc_milliohms = cJSON_GetObjectItem(root, writeable[7]);
 
-  messageCount += 1;
-
   auto doUnpair = cJSON_IsTrue(unpair);
 
   if (cJSON_IsString(system_mode) && (system_mode->valuestring != NULL)) {
@@ -203,29 +202,29 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
          mode <= ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP;
          mode = (esp_zb_zcl_thermostat_system_mode_t)(mode + 1)) {
       if (!strcasecmp(systemModes[mode], system_mode->valuestring)) {
-        ESP_LOGI(TAG, "system_mode %s (%d)\n", system_mode->valuestring, mode);
+        ESP_LOGI(TAG, "system_mode %s (%d)", system_mode->valuestring, mode);
         trv->setSystemMode(mode);
       }
     }
   }
 
   if (cJSON_IsNumber(current_heating_setpoint)) {
-    ESP_LOGI(TAG, "current_heating_setpoint %f\n", current_heating_setpoint->valuedouble);
+    ESP_LOGI(TAG, "current_heating_setpoint %f", current_heating_setpoint->valuedouble);
     trv->setHeatingSetpoint((float)current_heating_setpoint->valuedouble);
   }
 
   if (cJSON_IsNumber(local_temperature_calibration)) {
-    ESP_LOGI(TAG, "local_temperature_calibration %f\n", local_temperature_calibration->valuedouble);
+    ESP_LOGI(TAG, "local_temperature_calibration %f", local_temperature_calibration->valuedouble);
     trv->setTempCalibration((float)local_temperature_calibration->valuedouble);
   }
 
   if (cJSON_IsNumber(sleep_time)) {
-    ESP_LOGI(TAG, "sleep_time %d\n", sleep_time->valueint);
+    ESP_LOGI(TAG, "sleep_time %d", sleep_time->valueint);
     trv->setSleepTime(sleep_time->valueint);
   }
 
   if (cJSON_IsNumber(resolution)) {
-    ESP_LOGI(TAG, "resolution %lf\n", resolution->valuedouble);
+    ESP_LOGI(TAG, "resolution %lf", resolution->valuedouble);
     int res = -1;
     if (resolution->valuedouble >= 0.5) res = 0;
     else if (resolution->valuedouble >= 0.25) res = 1;

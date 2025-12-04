@@ -60,16 +60,11 @@ void checkForMessages(Trv *trv) {
   // to avoid excessive checking and the valve moving too often, and to give the device temperature time to settle after a change (which
   // drives up the internal temperature and causes resonance)
   ESP_LOGI(TAG, "checkForMessages %d / %d", messgageChecks, checkEvery);
-  if (net->getMessageCount() == 0) {
-    if (messgageChecks >= checkEvery) {
-      trv->checkAutoState();
-      messgageChecks = 0;
-    } else {
-      messgageChecks += 1;
-    }
-  } else {
-    // We defer checking the auto state if we received messages as they will have called checkAutoState()
+  if (messgageChecks >= checkEvery) {
+    trv->checkAutoState();
     messgageChecks = 0;
+  } else {
+    messgageChecks += 1;
   }
   WithTask::waitForAllTasks();
   net->sendStateToHub(trv->getState(false));

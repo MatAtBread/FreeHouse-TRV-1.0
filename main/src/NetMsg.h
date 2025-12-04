@@ -8,11 +8,9 @@ class NetMsg {
         char otaUrl[128];
         char otaSsid[32];
         char otaPwd[64];
-        int messageCount;
 
     public:
-        NetMsg() { otaUrl[0] = otaSsid[0] = otaPwd[0] = 0; messageCount = 0; }
-        int getMessageCount() { return messageCount; }
+        NetMsg() { otaUrl[0] = otaSsid[0] = otaPwd[0] = 0; }
         static const char *writeable[];
         virtual ~NetMsg();
 
