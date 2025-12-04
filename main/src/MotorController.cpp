@@ -95,7 +95,7 @@ void MotorController::task() {
   }
 
   unsigned long startTime = 0;
-  ESP_LOGI(TAG, "MotorController::task start noloadBatt %f, target %d, current %d", noloadBatt / 1000.0, target, current);
+  const char *state = "start";
 
   while (true) {
     auto now = millis();
@@ -105,7 +105,8 @@ void MotorController::task() {
       if (dir != currentDir) {
         setDirection(currentDir = dir);
         startTime = now;
-        ESP_LOGI(TAG, "MotorController::task dir: %d, currentDir: %d, target %d, current %d", dir, currentDir, target, current);
+        state = "seeking";
+//        ESP_LOGI(TAG, "MotorController::task dir: %d, currentDir: %d, target %d, current %d", dir, currentDir, target, current);
       }
     }
 
@@ -113,29 +114,37 @@ void MotorController::task() {
     auto Rmotor = motorResistence(batt, noloadBatt, shuntMilliohms);
     auto runTime = startTime ? now - startTime : 0;
     if (startTime)
-      ESP_LOGI(TAG, "MotorController::task dir: %d, noloadBatt %f, batt %f, Rmotor %f (%f, I=%fmA), target %d, current %d, runTime: %lu",
-        currentDir, noloadBatt / 1000.0, batt / 1000.0,
-        Rmotor / 1000.0, motorDcMilliohms / 1000.0,
-        /* I = V / R */ (float)batt / (float)Rmotor * 1000.0,
-        target, current, runTime);
+      state = "running";
+      // ESP_LOGI(TAG, "MotorController::task dir: %d, noloadBatt %f, batt %f, Rmotor %f (%f, I=%fmA), target %d, current %d, runTime: %lu",
+      //   currentDir, noloadBatt / 1000.0, batt / 1000.0,
+      //   Rmotor / 1000.0, motorDcMilliohms / 1000.0,
+      //   /* I = V / R */ (float)batt / (float)Rmotor * 1000.0,
+      //   target, current, runTime);
     if (currentDir == 0) {
       noloadBatt = (noloadBatt * 7 + batt) / 8;
+      state = "idle";
     } else {
       if (Rmotor >= 1000000 /* 1k ohm */) {
-        ESP_LOGI(TAG, "Motor disconnected");
+        state = "disconnected";
         target = 50;
         current = 50;
         startTime = 0;
         setDirection(0);
       } else if (runTime >= minMotorTime && Rmotor < motorDcMilliohms) {
         // Motor has stalled
-        ESP_LOGI(TAG, "Motor stalled: batt %f, noLoadBatt %f, Rmotor %f", batt / 1000.0, noloadBatt / 1000.0, Rmotor / 1000.0);
+        state = "stalled";
+        // ESP_LOGI(TAG, "Motor stalled dir: %d, noloadBatt %f, batt %f, Rmotor %f (%f, I=%fmA), target %d, current %d, runTime: %lu",
+        //   currentDir, noloadBatt / 1000.0, batt / 1000.0,
+        //   Rmotor / 1000.0, motorDcMilliohms / 1000.0,
+        //   /* I = V / R */ (float)batt / (float)Rmotor * 1000.0,
+        //   target, current, runTime);
         current = target;
         setDirection(0);
         startTime = 0;
       } else if (runTime > maxMotorTime) {
         // Motor has timed-out
-        ESP_LOGI(TAG, "Motor timed-out");
+        state = "timed-out";
+        // ESP_LOGI(TAG, "Motor timed-out");
         target = 50;
         current = 50;
         startTime = 0;
@@ -144,6 +153,14 @@ void MotorController::task() {
         current = 50 + currentDir;
       }
     }
+
+    ESP_LOGI(TAG, "MotorController %s: dir: %d, noloadBatt %f, batt %f, Rmotor %f (%f, I=%fmA), target %d, current %d, runTime: %lu",
+      state,
+      currentDir, noloadBatt / 1000.0, batt / 1000.0,
+      Rmotor / 1000.0, motorDcMilliohms / 1000.0,
+      /* I = V / R */ (float)batt / (float)Rmotor * 1000.0,
+      target, current, runTime);
+
     if (getDirection() || target != current)
       delay(250);
     else
