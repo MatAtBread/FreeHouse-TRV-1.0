@@ -178,6 +178,7 @@ extern "C" void app_main() {
   GPIO::digitalWrite(LED_BUILTIN, true);
   GPIO::pinMode(TOUCH_PIN, INPUT);
 
+  // Ideally, we'd wake on CHARGING changed, but in the current h/w this is not an RTC_GPIO
   esp_sleep_enable_ext1_wakeup(1ULL << TOUCH_PIN, ESP_EXT1_WAKEUP_ANY_HIGH);
   esp_sleep_enable_timer_wakeup(dreamTime);
   ESP_LOGI(TAG, "%s %llu", "deep sleep", dreamTime);
