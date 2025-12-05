@@ -31,56 +31,54 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 {
   ota_data_t *update = (ota_data_t *)evt->user_data;
 
-    switch(evt->event_id) {
-        case HTTP_EVENT_ERROR:
-            ESP_LOGI(TAG, "HTTP_EVENT_ERROR");
-            break;
-        case HTTP_EVENT_ON_CONNECTED:
-            ESP_LOGI(TAG, "HTTP_EVENT_ON_CONNECTED");
-            break;
-        case HTTP_EVENT_HEADER_SENT:
-            ESP_LOGI(TAG, "HTTP_EVENT_HEADER_SENT");
-            break;
-        case HTTP_EVENT_ON_HEADER:
-            ESP_LOGI(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value);
-            break;
-        case HTTP_EVENT_ON_DATA:
-            // ESP_LOGI(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
-            if (!esp_http_client_is_chunked_response(evt->client)) {
-                // If user_data buffer is configured, copy the response into the buffer
-                if (content_len == -1) {
-                    content_len = esp_http_client_get_content_length(evt->client);
-                    ESP_LOGI(TAG, "content_len=%lld", content_len);
-                }
-                content_read += evt->data_len;
-                int percent = (content_read * 100) / content_len;
-                if (percent != lastPercent) {
-                    ESP_LOGI(TAG, "Download progress: %d%% (%lld of %lld)", percent, content_read, content_len);
-                    lastPercent = percent;
-                }
-                GPIO::digitalWrite(LED_BUILTIN, !GPIO::digitalRead(LED_BUILTIN));
-                ERR_BACKTRACE(esp_ota_write(update->handle, evt->data, evt->data_len));
+  switch(evt->event_id) {
+    case HTTP_EVENT_ERROR:
+        ESP_LOGI(TAG, "HTTP_EVENT_ERROR");
+        break;
+    case HTTP_EVENT_ON_CONNECTED:
+        ESP_LOGI(TAG, "HTTP_EVENT_ON_CONNECTED");
+        break;
+    case HTTP_EVENT_HEADER_SENT:
+        ESP_LOGI(TAG, "HTTP_EVENT_HEADER_SENT");
+        break;
+    case HTTP_EVENT_ON_HEADER:
+        ESP_LOGI(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value);
+        break;
+    case HTTP_EVENT_ON_DATA:
+        // ESP_LOGI(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
+        if (!esp_http_client_is_chunked_response(evt->client)) {
+            // If user_data buffer is configured, copy the response into the buffer
+            if (content_len == -1) {
+                content_len = esp_http_client_get_content_length(evt->client);
+                ESP_LOGI(TAG, "content_len=%lld", content_len);
             }
-            break;
-
-        case HTTP_EVENT_ON_FINISH:
-            ESP_LOGI(TAG, "HTTP_EVENT_ON_FINISH");
-            ERR_BACKTRACE(esp_ota_end(update->handle));
-            ERR_BACKTRACE(esp_ota_set_boot_partition(update->partition));
-            esp_restart();
-            break;
-
-            case HTTP_EVENT_DISCONNECTED:
-            ESP_LOGI(TAG, "HTTP_EVENT_DISCONNECTED");
-            break;
-        case HTTP_EVENT_REDIRECT:
-            ESP_LOGI(TAG, "HTTP_EVENT_REDIRECT");
-            esp_http_client_set_header(evt->client, "From", "user@example.com");
-            esp_http_client_set_header(evt->client, "Accept", "text/html");
-            esp_http_client_set_redirection(evt->client);
-            break;
-    }
-    return ESP_OK;
+            content_read += evt->data_len;
+            int percent = (content_read * 100) / content_len;
+            if (percent != lastPercent) {
+                ESP_LOGI(TAG, "Download progress: %d%% (%lld of %lld)", percent, content_read, content_len);
+                lastPercent = percent;
+            }
+            GPIO::digitalWrite(LED_BUILTIN, !GPIO::digitalRead(LED_BUILTIN));
+            ERR_BACKTRACE(esp_ota_write(update->handle, evt->data, evt->data_len));
+        }
+        break;
+    case HTTP_EVENT_ON_FINISH:
+        ESP_LOGI(TAG, "HTTP_EVENT_ON_FINISH");
+        ERR_BACKTRACE(esp_ota_end(update->handle));
+        ERR_BACKTRACE(esp_ota_set_boot_partition(update->partition));
+        esp_restart();
+        break;
+    case HTTP_EVENT_DISCONNECTED:
+        ESP_LOGI(TAG, "HTTP_EVENT_DISCONNECTED");
+        break;
+    case HTTP_EVENT_REDIRECT:
+        ESP_LOGI(TAG, "HTTP_EVENT_REDIRECT");
+        //esp_http_client_set_header(evt->client, "From", "user@example.com");
+        esp_http_client_set_header(evt->client, "Accept", "text/html");
+        esp_http_client_set_redirection(evt->client);
+        break;
+  }
+  return ESP_OK;
 }
 
 class SoftWatchDog: public WithTask {
@@ -166,15 +164,26 @@ NetMsg::~NetMsg() {
   }
 }
 
+#define FIELD(N) static const char field_##N[] = #N;
+
+FIELD(current_heating_setpoint);
+FIELD(local_temperature_calibration);
+FIELD(system_mode);
+FIELD(sleep_time);
+FIELD(resolution);
+FIELD(unpair);
+FIELD(shunt_milliohms);
+FIELD(motor_dc_milliohms);
+
 const char* NetMsg::writeable[] = {
-    "current_heating_setpoint",
-    "local_temperature_calibration",
-    "system_mode",
-    "sleep_time",
-    "resolution",
-    "unpair",
-    "shunt_milliohms",
-    "motor_dc_milliohms",
+    field_current_heating_setpoint,
+    field_local_temperature_calibration,
+    field_system_mode,
+    field_sleep_time,
+    field_resolution,
+    field_unpair,
+    field_shunt_milliohms,
+    field_motor_dc_milliohms,
     NULL
 };
 
@@ -186,14 +195,14 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
   }
   ESP_LOGI(TAG, "JSON message: %s", json);
 
-  cJSON *current_heating_setpoint = cJSON_GetObjectItem(root, writeable[0]);
-  cJSON *local_temperature_calibration = cJSON_GetObjectItem(root, writeable[1]);
-  cJSON *system_mode = cJSON_GetObjectItem(root, writeable[2]);
-  cJSON *sleep_time = cJSON_GetObjectItem(root, writeable[3]);
-  cJSON *resolution = cJSON_GetObjectItem(root, writeable[4]);
-  cJSON *unpair = cJSON_GetObjectItem(root, writeable[5]);
-  cJSON *shunt_milliohms = cJSON_GetObjectItem(root, writeable[6]);
-  cJSON *motor_dc_milliohms = cJSON_GetObjectItem(root, writeable[7]);
+  cJSON *current_heating_setpoint = cJSON_GetObjectItem(root, field_current_heating_setpoint);
+  cJSON *local_temperature_calibration = cJSON_GetObjectItem(root, field_current_heating_setpoint);
+  cJSON *system_mode = cJSON_GetObjectItem(root, field_system_mode);
+  cJSON *sleep_time = cJSON_GetObjectItem(root, field_sleep_time);
+  cJSON *resolution = cJSON_GetObjectItem(root, field_resolution);
+  cJSON *unpair = cJSON_GetObjectItem(root, field_unpair);
+  cJSON *shunt_milliohms = cJSON_GetObjectItem(root, field_shunt_milliohms);
+  cJSON *motor_dc_milliohms = cJSON_GetObjectItem(root, field_motor_dc_milliohms);
 
   auto doUnpair = cJSON_IsTrue(unpair);
 
@@ -209,22 +218,18 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
   }
 
   if (cJSON_IsNumber(current_heating_setpoint)) {
-    ESP_LOGI(TAG, "current_heating_setpoint %f", current_heating_setpoint->valuedouble);
     trv->setHeatingSetpoint((float)current_heating_setpoint->valuedouble);
   }
 
   if (cJSON_IsNumber(local_temperature_calibration)) {
-    ESP_LOGI(TAG, "local_temperature_calibration %f", local_temperature_calibration->valuedouble);
     trv->setTempCalibration((float)local_temperature_calibration->valuedouble);
   }
 
   if (cJSON_IsNumber(sleep_time)) {
-    ESP_LOGI(TAG, "sleep_time %d", sleep_time->valueint);
     trv->setSleepTime(sleep_time->valueint);
   }
 
   if (cJSON_IsNumber(resolution)) {
-    ESP_LOGI(TAG, "resolution %lf", resolution->valuedouble);
     int res = -1;
     if (resolution->valuedouble >= 0.5) res = 0;
     else if (resolution->valuedouble >= 0.25) res = 1;
