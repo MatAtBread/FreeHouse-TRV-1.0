@@ -102,9 +102,10 @@ Trv::Trv() {
 }
 
 Trv::~Trv() {
+  delete motor;
   delete battery;
   delete tempSensor;
-  delete motor;
+  delete fs;
 }
 
 void Trv::setSleepTime(int seconds) {
