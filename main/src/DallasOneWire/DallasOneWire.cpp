@@ -72,8 +72,13 @@ void DallasOneWire::task() {
   ow_reset(&ow);
   ow_send(&ow, OW_SKIP_ROM);
   ow_send(&ow, DS18B20_READ_SCRATCHPAD);
-  temp = (signed)(ow_read(&ow) | (ow_read(&ow) << 8)) / 16.0;
-  ESP_LOGI(TAG,"Temp is %f", temp);
+  const uint16_t data = (ow_read(&ow) | (ow_read(&ow) << 8));
+  if (data == 0xFFFF) {
+    ESP_LOGE(TAG, "DallasOneWire: READ FAILED");
+  } else {
+    temp = (signed)(data) / 16.0;
+    ESP_LOGI(TAG,"Temp is %f", temp);
+  }
   ESP_LOGI(TAG, "DS18B20 scratchpad %02x %02x %02x", ow_read(&ow), ow_read(&ow), ow_read(&ow));
   ow_reset(&ow);
 }

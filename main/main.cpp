@@ -134,16 +134,29 @@ extern "C" void app_main() {
             uint8_t currentPosition = 0;
             MotorController* motor = new MotorController(17, 19, battery, currentPosition, state.config.shunt_milliohms, state.config.motor_dc_milliohms);
             int count = 0;
+            bool failed = false;
+            GPIO::digitalWrite(LED_BUILTIN, false);
             while (true) {
-              ESP_LOGI(TAG, "Test cycle %d", count++);
-              GPIO::digitalWrite(LED_BUILTIN, count & 1 ? true : false);
+              if (failed) {
+                  GPIO::digitalWrite(LED_BUILTIN, true);
+                  delay(500);
+                  GPIO::digitalWrite(LED_BUILTIN, false);
+                  delay(200);
+              } else {
+                ESP_LOGI(TAG, "Test cycle %d", count++);
 
-              float temp;
-              DallasOneWire tempSensor(18, temp);
+                float temp = 0;
+                DallasOneWire tempSensor(18, temp);
 
-              motor->setValvePosition(count & 1 ? 100 : 0);
-              motor->wait();
-              delay(2000);
+                const int target = count & 1 ? 100 : 0;
+                motor->setValvePosition(target);
+                motor->wait();
+                if (motor->getValvePosition() != target) {
+                  ESP_LOGW(TAG, "Failed to reach target %d, got %d. Sleeping.", target, motor->getValvePosition());
+                  failed = true;
+                }
+                delay(2000);
+              }
               if (touchButtonPressed()) {
                 ESP_LOGI(TAG, "Exit test mode on touch");
                 esp_restart();

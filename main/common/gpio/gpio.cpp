@@ -28,7 +28,6 @@ void GPIO::pinMode(int pin, PinMode mode) {
     };
     gpio_config(&cfg);
     lastMode[pin] = mode;
-    gpio_set_direction((gpio_num_t)pin, (gpio_mode_t)mode);
   }
 }
 

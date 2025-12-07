@@ -42,7 +42,7 @@ static RTC_DATA_ATTR trv_state_t globalState = {
     .sleep_time = 20, // Added in STATE_VERSION 4
     .resolution = 1, // // Added in STATE_VERSION 5
     .shunt_milliohms = 2000, // Added in STATE_VERSION 6
-    .motor_dc_milliohms = 10000, // Added in STATE_VERSION 6
+    .motor_dc_milliohms = 15000, // Added in STATE_VERSION 6
   }
 };
 
@@ -68,7 +68,7 @@ Trv::Trv() {
     UPDATE_STATE(2, memset(state.config.passKey, 0, sizeof (state.config.passKey)));
     UPDATE_STATE(3, state.config.sleep_time = 20); // Default sleep time
     UPDATE_STATE(4, state.config.resolution = 3); // Default resolution 10-bit
-    UPDATE_STATE(5, state.config.shunt_milliohms = 2000; state.config.motor_dc_milliohms = 10000);
+    UPDATE_STATE(5, state.config.shunt_milliohms = 2000; state.config.motor_dc_milliohms = 15000);
     r = sizeof(state);
   }
 
@@ -83,7 +83,7 @@ Trv::Trv() {
     globalState.config.sleep_time = 20;
     globalState.config.resolution = 3;
     globalState.config.shunt_milliohms = 2000;
-    globalState.config.motor_dc_milliohms = 10000;
+    globalState.config.motor_dc_milliohms = 15000;
   } else {
     globalState.config = state.config;
   }
