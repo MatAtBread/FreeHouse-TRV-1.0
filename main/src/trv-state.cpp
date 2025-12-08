@@ -166,6 +166,7 @@ void Trv::resetValve() {
 }
 
 void Trv::setMotorParameters(int shunt_milliohms, int motor_dc_milliohms) {
+  ESP_LOGI(TAG, "Trv::setMotorParameters shunt %d motor dc %d", shunt_milliohms, motor_dc_milliohms);
   if (shunt_milliohms > 0) {
     globalState.config.shunt_milliohms = shunt_milliohms;
   }

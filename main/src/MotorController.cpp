@@ -12,11 +12,6 @@ MotorController::MotorController(uint8_t pinDir, uint8_t pinSleep, BatteryMonito
   GPIO::pinMode(pinSleep, OUTPUT);
   GPIO::pinMode(pinDir, OUTPUT);
   setDirection(0);
-
-  // (Todo: check if this is needed here, or when entereing sleep)
-  // rtc_gpio_hold_en((gpio_num_t)NSLEEP);
-  // rtc_gpio_pulldown_dis((gpio_num_t)NSLEEP);
-  // rtc_gpio_pullup_en((gpio_num_t)NSLEEP);
 }
 
 MotorController::~MotorController() {
@@ -70,7 +65,7 @@ uint8_t MotorController::getValvePosition() {
 static int motorResistence(int Vmotor, int Vbatt, int Rshunt) {
   const auto deltaV = Vbatt - Vmotor;
   if (deltaV < 1)
-    return 1000;//000; // Disconnected
+    return 999999;// Disconnected
   return Vmotor * Rshunt / deltaV;
 }
 

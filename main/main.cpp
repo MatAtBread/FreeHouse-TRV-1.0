@@ -72,8 +72,34 @@ void checkForMessages(Trv *trv) {
   delete net;
 }
 
-static RTC_DATA_ATTR int wakeCount = 0;
+// void test_fn() {
+//   ESP_LOGI(TAG, "DEBUG DELAY START");
+//   for (int i=0; i<50; i++) {
+//     GPIO::digitalWrite(LED_BUILTIN, i & 1);
+//     delay(100);
+//   }
+//   ESP_LOGI(TAG, "DEBUG DELAY END");
 
+//   ESP_LOGI(TAG, "Test fn called");
+//   BatteryMonitor* battery = new BatteryMonitor(0, 20);
+//   uint8_t currentPosition = 0;
+//   MotorController* mc = new MotorController(17, 19, battery, currentPosition, 660, 15000);
+//   while (1) {
+//     mc->setDirection(1);
+//     delay(3000);
+//     mc->setDirection(-1);
+//     delay(3000);
+//     mc->setDirection(0);
+//     delay(3000);
+//     if (touchButtonPressed()) {
+//       esp_sleep_enable_ext1_wakeup(1ULL << TOUCH_PIN, ESP_EXT1_WAKEUP_ANY_HIGH);
+//       esp_sleep_enable_timer_wakeup(60 * 1000000ULL);
+//       esp_deep_sleep_start();
+//     }
+//   }
+// }
+
+static RTC_DATA_ATTR int wakeCount = 0;
 extern "C" void app_main() {
 //  esp_log_level_set("*", ESP_LOG_WARN);
   esp_log_level_set(TAG, ESP_LOG_INFO);
@@ -83,15 +109,6 @@ extern "C" void app_main() {
   wakeCount += 1;
   GPIO::pinMode(LED_BUILTIN, OUTPUT);
   GPIO::digitalWrite(LED_BUILTIN, false);
-
-  // {
-  //   ESP_LOGI(TAG, "DEBUG DELAY START");
-  //   for (int i=0; i<50; i++) {
-  //     GPIO::digitalWrite(LED_BUILTIN, i & 1);
-  //     delay(100);
-  //   }
-  //   ESP_LOGI(TAG, "DEBUG DELAY END");
-  // }
 
   ESP_LOGI(TAG, "Build %s", versionDetail);
   ESP_LOGI(TAG, "Wake: %d reset: %d count: %d", wakeCause, resetCause, wakeCount);
@@ -106,14 +123,16 @@ extern "C" void app_main() {
   ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_event_loop_create_default());
 
+// test_fn();
+
   // ESP_LOGI(TAG,"Heap %lu",esp_get_free_heap_size());
   ESP_LOGI(TAG, "Create TRV");
   Trv *trv = new Trv();
-  uint64_t dreamTime = 1;
+  uint32_t dreamSecs = 1;
 
   if (trv->flatBattery() && !trv->is_charging()) {
     ESP_LOGI(TAG, "Battery exhausted");
-    dreamTime = 60 * 60 * 1000000UL;  // 1 hour
+    dreamSecs = 60 * 60;
   } else {
     if (resetCause != ESP_RST_DEEPSLEEP) {
       resetCause = ESP_RST_DEEPSLEEP;  // To suppress further reset in no-sleep mode
@@ -166,17 +185,17 @@ extern "C" void app_main() {
           break;
         case exit_status_t::POWER_OFF:
           ESP_LOGI(TAG, "Power off requested");
-          dreamTime = 24 * 60 * 60 * 1000000UL;  // 1 day
+          dreamSecs = 24 * 60 * 60;
           break;
         case exit_status_t::CLOSED:
         case exit_status_t::NONE:
         case exit_status_t::TIME_OUT:
-          dreamTime = 1;
+          dreamSecs = 1;
           break;
       }
     } else {
       checkForMessages(trv);
-      dreamTime = trv->getState(true).config.sleep_time * 1000000UL;  // 20 seconds
+      dreamSecs = trv->getState(true).config.sleep_time;
     }
   }
 
@@ -188,8 +207,8 @@ extern "C" void app_main() {
 
   // Ideally, we'd wake on CHARGING changed, but in the current h/w this is not an RTC_GPIO
   esp_sleep_enable_ext1_wakeup(1ULL << TOUCH_PIN, ESP_EXT1_WAKEUP_ANY_HIGH);
-  esp_sleep_enable_timer_wakeup(dreamTime);
-  ESP_LOGI(TAG, "%s %llu", "deep sleep", dreamTime);
+  esp_sleep_enable_timer_wakeup(dreamSecs * 1000000ULL);
+  ESP_LOGI(TAG, "deep sleep %u secs", dreamSecs);
 
   esp_deep_sleep_start();
 }

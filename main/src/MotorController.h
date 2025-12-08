@@ -5,6 +5,7 @@
 #include "WithTask.h"
 
 class MotorController: public WithTask {
+  friend void test_fn();
  protected:
   uint8_t pinDir;
   uint8_t pinSleep;

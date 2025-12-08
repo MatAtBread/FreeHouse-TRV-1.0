@@ -107,8 +107,14 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
     trv->setSystemMode(ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP);
   } else if (startsWith(url, "/temp-")) {
     trv->setHeatingSetpoint(atof(url + 6));
+  } else if (startsWith(url, "/cali-")) {
+    trv->setTempCalibration(atof(url + 6));
   } else if (startsWith(url, "/sleep_time-")) {
     trv->setSleepTime(atoi(url + 12));
+  } else if (startsWith(url, "/shunt-")) {
+    trv->setMotorParameters(atoi(url + 7),0);
+  } else if (startsWith(url, "/motordc-")) {
+    trv->setMotorParameters(0,atoi(url + 9));
   } else if (startsWith(url, "/close")) {
     exitPortal(CLOSED);
   } else if (startsWith(url, "/test-mode")) {
@@ -228,22 +234,28 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
       "<tr><td>syetem mode</td><td>" << systemModes[state.config.system_mode] << '(' << state.config.system_mode << ")</td></tr>\n"
       "<tr><td>local_temperature</td><td>" << state.sensors.local_temperature << " °C</td></tr>\n"
       "<tr><td>sensor_temperature</td><td>" << state.sensors.sensor_temperature << " °C</td></tr>\n"
+      "<tr><td>temp. resolution</td><td>" << (0.5 / (float)((1 << state.config.resolution))) << "°C</td></tr>\n"
       "<tr><td>battery (raw)</td><td>" << state.sensors.battery_raw << "mV</td></tr>\n"
       "<tr><td>battery %</td><td>" << (int)state.sensors.battery_percent << "%</td></tr>\n"
       "<tr><td>power source</td><td>" << (state.sensors.is_charging ? "charging" : "battery power") << "</td></tr>\n"
       "<tr><td>valve</td><td>" << (int)state.sensors.position << "</td></tr>\n"
-      "<tr><td>heating setpoint</td><td>\n"
-      "<input type='range' min='10' max='30' value='" << state.config.current_heating_setpoint << "' step='0.25' oninput='this.nextElementSibling.textContent = this.value' onchange='window.location.href = \"/temp-\"+this.value' /><span>" << state.config.current_heating_setpoint << "°C</span></td></tr>\n"
-      "<tr><td>calibration</td><td>" << state.config.local_temperature_calibration << "°C</td></tr>\n"
-      "<tr><td>resolution</td><td>" << (0.5 / (float)((1 << state.config.resolution))) << "°C</td></tr>\n"
-      "<tr><td>Shunt</td><td>" << (state.config.shunt_milliohms) << "mΩ</td></tr>\n"
-      "<tr><td>Motor</td><td>" << (state.config.motor_dc_milliohms) << "mΩ</td></tr>\n"
-      "<tr><td>Message comms mode</td><td>" << netModes[state.config.netMode] << "</td></tr>\n"
-      "<tr><td>Sleep time (secs)</td>"
-        "<td><input style='width:4em;' id='sleep_time' maxLength=4 value='" << state.config.sleep_time << "'>"
-          "<button onclick='window.location.href=\"/sleep_time-\"+Number(document.getElementById(\"sleep_time\")?.value || 20)'>Set</button>"
-        "</td>"
+      "<tr><td>heating setpoint</td>"
+        "<td><input style=\"width:6em;\" type=\"number\" value=\"" << (state.config.current_heating_setpoint) << "\" onchange='window.location.href = \"/temp-\"+this.value'>°C</td>"
       "</tr>\n"
+      "<tr><td>temp. calibration</td>"
+        "<td><input style=\"width:6em;\" type=\"number\" value=\"" << (state.config.local_temperature_calibration) << "\" onchange='window.location.href = \"/cali-\"+this.value'>°C</td>"
+      "</tr>\n"
+      "<tr><td>Shunt</td>"
+        "<td><input style=\"width:6em;\" type=\"number\" value=\"" << (state.config.shunt_milliohms) << "\" onchange='window.location.href = \"/shunt-\"+this.value'>mΩ</td>"
+      "</tr>\n"
+      "<tr><td>Motor</td>"
+        "<td><input style=\"width:6em;\"  type=\"number\" value=\"" << (state.config.motor_dc_milliohms) << "\" onchange='window.location.href = \"/motordc-\"+this.value'>mΩ</td>"
+      "</tr>\n"
+      "<tr><td>Message comms mode</td><td>" << netModes[state.config.netMode] << "</td></tr>\n"
+      "<tr><td>Sleep time</td>"
+        "<td><input style='width:4em;' maxLength=4 value='" << state.config.sleep_time << "' onchange='window.location.href=\"/sleep_time-\"+Number(this.value || 20)'> secs</td>"
+      "</tr>\n"
+
       "<tr><td>MQTT/ESP-NOW device name</td><td><input id='device' value=\"" << state.config.mqttConfig.device_name << "\"></td></tr>\n"
       "<tr style='display:none;'><td>WiFi SSID</td><td><input id='ssid' value=\"" << state.config.mqttConfig.wifi_ssid << "\"></td></tr>\n"
       "<tr style='display:none;'><td>WiFi password</td><td><input id='pwd' value=\"" << state.config.mqttConfig.wifi_pwd << "\"></td></tr>\n"
