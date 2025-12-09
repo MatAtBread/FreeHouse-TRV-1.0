@@ -6,7 +6,7 @@
 #define maxMotorTime 20000
 
 
-MotorController::MotorController(uint8_t pinDir, uint8_t pinSleep, BatteryMonitor* battery, uint8_t &current, int shuntMilliohms, int motorDcMilliohms) :
+MotorController::MotorController(uint8_t pinDir, uint8_t pinSleep, BatteryMonitor* battery, uint8_t &current, const int& shuntMilliohms, const int& motorDcMilliohms) :
   pinDir(pinDir), pinSleep(pinSleep), battery(battery), current(current), shuntMilliohms(shuntMilliohms), motorDcMilliohms(motorDcMilliohms) {
   target = current;
   GPIO::pinMode(pinSleep, OUTPUT);
@@ -143,10 +143,11 @@ void MotorController::task() {
       }
     }
 
-    ESP_LOGI(TAG, "\x1b[1A\rMotorController %s: dir: %d, noloadBatt %4umV, batt %4umV, Rmotor %6.2f\xCE\xA9 (I=%3umA), target %3d, current %3d, runTime: %5lu  ",
+    ESP_LOGI(TAG, "\x1b[1A\rMotorController %s: dir: %d, noloadBatt %4umV, batt %4umV, Rmotor %6.2f\xCE\xA9 (>%3u\xCE\xA9, I=%3umA), target %3d, current %3d, runTime: %5lu  ",
       state,
       currentDir, noloadBatt, batt,
       Rmotor / 1000.0,
+      motorDcMilliohms / 1000,
       /* I = V / R */ (1000 * batt) / Rmotor,
       target, current, runTime);
 
