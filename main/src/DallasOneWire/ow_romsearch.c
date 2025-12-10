@@ -17,7 +17,7 @@ int ow_romsearch (OW *ow, uint64_t *romcodes, int maxdevs, unsigned int command)
     while (finished == false && (maxdevs == 0 || num_found < maxdevs )) {
         finished = true;
         branch_point = next_branch_point;
-        if (ow_reset (ow) == false) {
+        if (ow_reset (ow) != ESP_OK) {
             num_found = 0;     // no slaves present
             finished = true;
             break;

@@ -18,9 +18,9 @@ static bool IRAM_ATTR _rx_event_done_cb (rmt_channel_handle_t rx_handle,
 }
 
 
-bool ow_init (OW *ow, int gpio_num) {
+uint32_t ow_init (OW *ow, int gpio_num) {
     if (ow == NULL) {
-        return false;
+        return ESP_FAIL;
     } else {
         *ow = (const OW){ 0 };
     }
@@ -35,19 +35,19 @@ bool ow_init (OW *ow, int gpio_num) {
     };
 
     if (rmt_new_rx_channel (&rx_channel_config, &(ow->rx_channel)) != ESP_OK) {
-        return false;
+        return ESP_FAIL;
     }
 
     // rx callback
     ow->rx_queue = xQueueCreate (1, sizeof (rmt_rx_done_event_data_t));
     if (ow->rx_queue == NULL) {
-        return false;
+        return ESP_FAIL;
     }
 
     ow->rx_buflen = OW_MAX_READ_BITS * sizeof (rmt_symbol_word_t);
     ow->rx_buffer = (rmt_symbol_word_t *)malloc (ow->rx_buflen);
     if (ow->rx_buffer == NULL) {
-        return false;
+        return ESP_FAIL;
     }
 
     rmt_rx_event_callbacks_t rx_callbacks = {
@@ -55,11 +55,11 @@ bool ow_init (OW *ow, int gpio_num) {
     };
 
     if (rmt_rx_register_event_callbacks (ow->rx_channel, &rx_callbacks, ow->rx_queue) != ESP_OK) {
-        return false;
+        return ESP_FAIL;
     }
 
     if (rmt_enable (ow->rx_channel) != ESP_OK) {
-        return false;
+        return ESP_FAIL;
     }
 
     // transmitter
@@ -75,18 +75,18 @@ bool ow_init (OW *ow, int gpio_num) {
     };
 
     if (rmt_new_tx_channel (&tx_channel_config, &(ow->tx_channel)) != ESP_OK) {
-        return false;
+        return ESP_FAIL;
     }
 
     if (rmt_enable (ow->tx_channel) != ESP_OK) {
-        return false;
+        return ESP_FAIL;
     }
 
     // tx encoders
     rmt_copy_encoder_config_t copy_encoder_config = {};
 
     if (rmt_new_copy_encoder (&copy_encoder_config, &(ow->copy_encoder)) != ESP_OK) {
-        return false;
+        return ESP_FAIL;
     }
 
     rmt_bytes_encoder_config_t bytes_encoder_config = {
@@ -95,10 +95,10 @@ bool ow_init (OW *ow, int gpio_num) {
     };
 
     if (rmt_new_bytes_encoder (&bytes_encoder_config, &(ow->bytes_encoder)) != ESP_OK) {
-        return false;
+        return ESP_FAIL;
     }
 
-    return true;
+    return ESP_OK;
 }
 
 

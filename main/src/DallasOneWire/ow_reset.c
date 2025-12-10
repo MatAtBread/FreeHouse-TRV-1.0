@@ -40,7 +40,7 @@ static bool _parse_reset_symbols (size_t num_symbols, rmt_symbol_word_t *symbols
 }
 
 
-bool ow_reset (OW *ow) {
+uint32_t ow_reset (OW *ow) {
     rmt_rx_done_event_data_t evt;
     ERR_BACKTRACE(rmt_receive (ow->rx_channel, ow->rx_buffer, ow->rx_buflen, &rx_config));
     ERR_BACKTRACE(rmt_transmit (ow->tx_channel, ow->copy_encoder, &symbol_reset, sizeof (rmt_symbol_word_t), &tx_config));
@@ -52,5 +52,5 @@ bool ow_reset (OW *ow) {
     if (rmt_tx_wait_all_done (ow->tx_channel, OW_RMT_TIMEOUT_MS) != ESP_OK) {
         ESP_LOGE (TAG, "%s: tx timeout", __func__);
     }
-    return is_present;
+    return is_present ? ESP_OK : ESP_ERR_NOT_FOUND;
 }

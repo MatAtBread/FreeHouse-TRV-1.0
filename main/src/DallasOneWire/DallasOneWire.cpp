@@ -1,8 +1,8 @@
-#include "../../trv.h"
+#include "DallasOneWire.h"
 
 #include <math.h>
 
-#include "DallasOneWire.h"
+#include "../../trv.h"
 #include "driver/gpio.h"
 #include "hal/gpio_types.h"
 
@@ -11,7 +11,7 @@ extern "C" {
 #include "ow_rom.h"
 }
 
-DallasOneWire::DallasOneWire(const uint8_t pin, float& temp): pin(pin), temp(temp) {
+DallasOneWire::DallasOneWire(const uint8_t pin, float& temp) : pin(pin), temp(temp) {
   if (!ow_init(&ow, pin)) {
     ESP_LOGW(TAG, "DallasOneWire: FAILED TO INIT DS18B20");
     return;
@@ -36,49 +36,65 @@ void DallasOneWire::setResolution(uint8_t res /* 0-3 */) {
   wait();
 
   ESP_LOGI(TAG, "DallasOneWire: Set resolution to %u", res);
-  ow_reset(&ow);
+  if (ow_reset(&ow) != ESP_OK) goto fail;
   ow_send(&ow, OW_SKIP_ROM);
   ow_send(&ow, DS18B20_WRITE_SCRATCHPAD);
   ow_send(&ow, 0x70);
   ow_send(&ow, 0x90);
   ow_send(&ow, 0x1F | (res << 5));  // Configuration byte resolution
 
-  ow_reset(&ow);
+  if (ow_reset(&ow) != ESP_OK) goto fail;
   ow_send(&ow, OW_SKIP_ROM);
   ow_send(&ow, DS18B20_COPY_SCRATCHPAD);
-  do { delay(10); } while (ow_read(&ow) == 0);
+  do {
+    delay(10);
+  } while (ow_read(&ow) == 0);
   ESP_LOGI(TAG, "DallasOneWire: Set resolution complete");
-  ow_reset(&ow);
+  if (ow_reset(&ow) != ESP_OK) goto fail;
   configuring = false;
+  return;
+
+fail:
+  ESP_LOGW(TAG, "DallasOneWire: FAILED TO SET RESOLUTION");
+  configuring = false;
+  return;
 }
 
 void DallasOneWire::task() {
-  if (!ow_reset(&ow)) {
-    ESP_LOGW(TAG, "DallasOneWire: FAILED TO RESET DS18B20");
-    return;
-  }
-
-  // uint64_t romcode = 0ULL;
-  // ow_romsearch(&ow, &romcode, 1, OW_SEARCH_ROM);
-  // if (romcode == 0ULL) {
-  //   ESP_LOGW(TAG, "DallasOneWire: FAILED TO FIND DS18B20");
-  //   return;
-  // }
+  uint16_t data;
+  if (ow_reset(&ow) != ESP_OK) goto fail;
 
   ow_send(&ow, OW_SKIP_ROM);
   ow_send(&ow, DS18B20_CONVERT_T);
-  do { delay(10); } while (ow_read(&ow) == 0);
+  do {
+    delay(10);
+  } while (ow_read(&ow) == 0);
 
-  ow_reset(&ow);
+  if (ow_reset(&ow) != ESP_OK) goto fail;
   ow_send(&ow, OW_SKIP_ROM);
   ow_send(&ow, DS18B20_READ_SCRATCHPAD);
-  const uint16_t data = (ow_read(&ow) | (ow_read(&ow) << 8));
+  data = (ow_read(&ow) | (ow_read(&ow) << 8));
   if (data == 0xFFFF) {
     ESP_LOGE(TAG, "DallasOneWire: READ FAILED");
+    int i = 0;
+    for (i = 0; i < 5; i++) {
+      delay(45);
+      if (ow_reset(&ow) == ESP_OK)
+        break;
+    }
+    if (i == 5) {
+      ESP_LOGE(TAG, "DallasOneWire: RESET FAILED AFTER READ FAILURE");
+      return;
+    }
   } else {
     temp = (signed)(data) / 16.0;
-    ESP_LOGI(TAG,"Temp is %f", temp);
+    ESP_LOGI(TAG, "Temp is %f", temp);
   }
   ESP_LOGI(TAG, "DS18B20 scratchpad %02x %02x %02x", ow_read(&ow), ow_read(&ow), ow_read(&ow));
-  ow_reset(&ow);
+  if (ow_reset(&ow) != ESP_OK) goto fail;
+  return;
+
+fail:
+  ESP_LOGW(TAG, "DallasOneWire: FAILED TO RESET");
+  return;
 }
