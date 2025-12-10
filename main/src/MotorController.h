@@ -4,6 +4,12 @@
 #include "BatteryMonitor.h"
 #include "WithTask.h"
 
+typedef struct motor_params_s {
+  int shunt_milliohms;
+  int dc_milliohms;
+  bool reversed;
+} motor_params_t;
+
 class MotorController: public WithTask {
   friend void test_fn();
  protected:
@@ -12,12 +18,12 @@ class MotorController: public WithTask {
   BatteryMonitor* battery;
   volatile uint8_t target;
   volatile uint8_t& current;
+  motor_params_t& params;
+
   void setDirection(int dir);
-  const int& shuntMilliohms;
-  const int& motorDcMilliohms;
 
  public:
-  MotorController(uint8_t pinDir, uint8_t pinSleep, BatteryMonitor* battery, uint8_t& current, const int& shuntMilliohms, const int& motorDcMilliohms);
+  MotorController(uint8_t pinDir, uint8_t pinSleep, BatteryMonitor* battery, uint8_t& current, motor_params_t &params);
   ~MotorController();
   void task();
   int getDirection();

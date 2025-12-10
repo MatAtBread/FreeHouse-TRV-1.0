@@ -6,8 +6,8 @@
 #define maxMotorTime 20000
 
 
-MotorController::MotorController(uint8_t pinDir, uint8_t pinSleep, BatteryMonitor* battery, uint8_t &current, const int& shuntMilliohms, const int& motorDcMilliohms) :
-  pinDir(pinDir), pinSleep(pinSleep), battery(battery), current(current), shuntMilliohms(shuntMilliohms), motorDcMilliohms(motorDcMilliohms) {
+MotorController::MotorController(uint8_t pinDir, uint8_t pinSleep, BatteryMonitor* battery, uint8_t &current, motor_params_t &params) :
+  pinDir(pinDir), pinSleep(pinSleep), battery(battery), current(current), params(params) {
   target = current;
   GPIO::pinMode(pinSleep, OUTPUT);
   GPIO::pinMode(pinDir, OUTPUT);
@@ -20,7 +20,7 @@ MotorController::~MotorController() {
 
 int MotorController::getDirection() {
   if (GPIO::digitalRead(pinSleep) == false) return 0;
-  return GPIO::digitalRead(pinDir) ? 1 : -1;
+  return GPIO::digitalRead(pinDir) != params.reversed ? 1 : -1;
 }
 
 
@@ -29,11 +29,11 @@ void MotorController::setDirection(int dir) {
   ESP_LOGI(TAG, "MotorController::setDirection %d", dir);
   switch (dir) {
     case -1:
-      GPIO::digitalWrite(pinDir, false);
+      GPIO::digitalWrite(pinDir, false != params.reversed);
       GPIO::digitalWrite(pinSleep, true);
       break;
     case 1:
-      GPIO::digitalWrite(pinDir, true);
+      GPIO::digitalWrite(pinDir, true != params.reversed);
       GPIO::digitalWrite(pinSleep, true);
       break;
     default:
@@ -111,7 +111,7 @@ void MotorController::task() {
     }
 
     const auto batt = battery->getValue();
-    const auto Rmotor = motorResistence(batt, noloadBatt, shuntMilliohms);
+    const auto Rmotor = motorResistence(batt, noloadBatt, params.shunt_milliohms);
     const auto runTime = startTime ? now - startTime : 0;
     if (startTime)
       state = "running";
@@ -125,7 +125,7 @@ void MotorController::task() {
         current = 50;
         startTime = 0;
         setDirection(0);
-      } else if (runTime >= minMotorTime && Rmotor < motorDcMilliohms) {
+      } else if (runTime >= minMotorTime && Rmotor < params.dc_milliohms) {
         // Motor has stalled
         state = "stalled";
         current = target;
@@ -147,7 +147,7 @@ void MotorController::task() {
       state,
       currentDir, noloadBatt, batt,
       Rmotor / 1000.0,
-      motorDcMilliohms / 1000,
+      params.dc_milliohms / 1000,
       /* I = V / R */ (1000 * batt) / Rmotor,
       target, current, runTime);
 

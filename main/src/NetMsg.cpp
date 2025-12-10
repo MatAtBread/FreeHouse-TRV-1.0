@@ -174,6 +174,7 @@ FIELD(resolution);
 FIELD(unpair);
 FIELD(shunt_milliohms);
 FIELD(motor_dc_milliohms);
+FIELD(motor_reversed);
 
 const char* NetMsg::writeable[] = {
     field_current_heating_setpoint,
@@ -184,6 +185,7 @@ const char* NetMsg::writeable[] = {
     field_unpair,
     field_shunt_milliohms,
     field_motor_dc_milliohms,
+    field_motor_reversed,
     NULL
 };
 
@@ -203,6 +205,7 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
   cJSON *unpair = cJSON_GetObjectItem(root, field_unpair);
   cJSON *shunt_milliohms = cJSON_GetObjectItem(root, field_shunt_milliohms);
   cJSON *motor_dc_milliohms = cJSON_GetObjectItem(root, field_motor_dc_milliohms);
+  cJSON *motor_reversed = cJSON_GetObjectItem(root, field_motor_reversed);
 
   auto doUnpair = cJSON_IsTrue(unpair);
 
@@ -241,8 +244,9 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
 
   auto shunt_value = cJSON_IsNumber(shunt_milliohms) ? shunt_milliohms->valueint : 0;
   auto motor_value = cJSON_IsNumber(motor_dc_milliohms) ? motor_dc_milliohms->valueint : 0;
-  if (shunt_value || motor_value) {
-    trv->setMotorParameters(shunt_value, motor_value);
+  auto reversed_value = cJSON_IsBool(motor_reversed) ? cJSON_IsTrue(motor_reversed) : cJSON_IsFalse(motor_reversed) ? 0 : -1;
+  if (shunt_value || motor_value || reversed_value != -1) {
+    trv->setMotorParameters(shunt_value, motor_value, reversed_value);
   }
 
   cJSON *ota = cJSON_GetObjectItem(root, "ota");
