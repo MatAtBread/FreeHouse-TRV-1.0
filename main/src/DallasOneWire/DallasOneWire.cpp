@@ -11,8 +11,21 @@ extern "C" {
 #include "ow_rom.h"
 }
 
+static void retryReset(OW *ow) {
+    int i = 0;
+    for (i = 0; i < 5; i++) {
+      delay(45);
+      if (ow_reset(ow) == ESP_OK)
+        break;
+    }
+    if (i == 5) {
+      ESP_LOGE(TAG, "DallasOneWire: RESET FAILED AFTER RETRIES");
+      return;
+    }
+  }
+
 DallasOneWire::DallasOneWire(const uint8_t pin, float& temp) : pin(pin), temp(temp) {
-  if (!ow_init(&ow, pin)) {
+  if (ow_init(&ow, pin) != ESP_OK) {
     ESP_LOGW(TAG, "DallasOneWire: FAILED TO INIT DS18B20");
     return;
   }
@@ -76,16 +89,8 @@ void DallasOneWire::task() {
   data = (ow_read(&ow) | (ow_read(&ow) << 8));
   if (data == 0xFFFF) {
     ESP_LOGE(TAG, "DallasOneWire: READ FAILED");
-    int i = 0;
-    for (i = 0; i < 5; i++) {
-      delay(45);
-      if (ow_reset(&ow) == ESP_OK)
-        break;
-    }
-    if (i == 5) {
-      ESP_LOGE(TAG, "DallasOneWire: RESET FAILED AFTER READ FAILURE");
-      return;
-    }
+    retryReset(&ow);
+    goto fail;
   } else {
     temp = (signed)(data) / 16.0;
     ESP_LOGI(TAG, "Temp is %f", temp);
