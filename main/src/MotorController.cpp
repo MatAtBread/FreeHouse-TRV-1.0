@@ -3,12 +3,20 @@
 #include "MotorController.h"
 
 #define minMotorTime 500
-#define maxMotorTime 20000
+#define maxMotorTimeClose 32000
+#define maxMotorTimeOpen 8000
+#define stallMinTime 500
+#define samplePeriod 40
 
+extern "C" {
+  esp_err_t pwm_init(gpio_num_t gpio_pin);
+  void pwm_set_duty(uint8_t duty);  // 0=off, 64=100% on
+}
 
 MotorController::MotorController(uint8_t pinDir, uint8_t pinSleep, BatteryMonitor* battery, uint8_t &current, motor_params_t &params) :
   pinDir(pinDir), pinSleep(pinSleep), battery(battery), current(current), params(params) {
   target = current;
+  //pwm_init((gpio_num_t)pinSleep);
   GPIO::pinMode(pinSleep, OUTPUT);
   GPIO::pinMode(pinDir, OUTPUT);
   setDirection(0);
@@ -27,6 +35,7 @@ int MotorController::getDirection() {
 void MotorController::setDirection(int dir) {
   // We don't need to enable the task here, as this protected method can only be called from within the task()
   ESP_LOGI(TAG, "MotorController::setDirection %d", dir);
+  stallCount = 0;
   switch (dir) {
     case -1:
       GPIO::digitalWrite(pinDir, false != params.reversed);
@@ -89,33 +98,38 @@ void MotorController::task() {
     return;
   }
 
-  unsigned long startTime = 0;
+  unsigned int startTime = 0;
   const char *state = "start";
 
-  ESP_LOGI(TAG, "MotorController %s: noloadBatt %f, target %d, current %d",
+
+  stallCount = 0;
+  int batt = noloadBatt;
+  auto maxMotorTime = getValvePosition() == 0 ? maxMotorTimeOpen : maxMotorTimeClose;
+  ESP_LOGI(TAG, "MotorController %s: noloadBatt %f, target %d, current %d, timeout %d",
       state,
       noloadBatt / 1000.0,
-      target, current);
+      target, current,
+      maxMotorTime);
 
-
-  while (true) {
+  while (getDirection() || target != current) {
     const auto now = millis();
-    auto currentDir = getDirection();
     if (target != current) {
       const auto dir = target > current ? 1 : -1;
-      if (dir != currentDir) {
-        setDirection(currentDir = dir);
+      if (dir != getDirection()) {
+        if (startTime)
+          maxMotorTime = maxMotorTimeClose;
+        setDirection(dir);
         startTime = now;
         state = "seeking";
       }
     }
 
-    const auto batt = battery->getValue();
+    batt = (batt * 3 + battery->getValue()) / 4;
     const auto Rmotor = motorResistence(batt, noloadBatt, params.shunt_milliohms);
     const auto runTime = startTime ? now - startTime : 0;
     if (startTime)
       state = "running";
-    if (currentDir == 0) {
+    if (getDirection() == 0) {
       noloadBatt = (noloadBatt * 7 + batt) / 8;
       state = "idle";
     } else {
@@ -126,34 +140,42 @@ void MotorController::task() {
         startTime = 0;
         setDirection(0);
       } else if (runTime >= minMotorTime && Rmotor < params.dc_milliohms) {
-        // Motor has stalled
-        state = "stalled";
-        current = target;
-        setDirection(0);
-        startTime = 0;
+        stallCount += 1;
+        state = "stalling";
+        if (getDirection() > 0 || stallCount * samplePeriod >= stallMinTime) {
+          // Motor has stalled
+          state = "stalled";
+          current = target;
+          setDirection(0);
+          startTime = 0;
+        }
       } else if (runTime > maxMotorTime) {
         // Motor has timed-out
-        state = "timed-out";
-        target = 50;
-        current = 50;
         startTime = 0;
+        if (getDirection() == 1 && target == 100) {
+          current = target;
+          state = "opened";
+        } else {
+          state = "timed-out";
+          target = current;
+        }
         setDirection(0);
       } else {
-        current = 50 + currentDir;
+        stallCount = 0;
+        current = 50 + getDirection();
       }
     }
 
-    ESP_LOGI(TAG, "\x1b[1A\rMotorController %s: dir: %d, noloadBatt %4umV, batt %4umV, Rmotor %6.2f\xCE\xA9 (>%3u\xCE\xA9, I=%3umA), target %3d, current %3d, runTime: %5lu  ",
+    ESP_LOGI(TAG, "\x1b[1A\rMotorController %s: dir: %d, noloadBatt %4umV, batt %4dmV (Δ%3umV, I=%3umA), Rmot %6.2f\xCE\xA9 (>%5.1f\xCE\xA9, I=%3umA), target %3d, current %3d, runTime: %5lu, timeout: %5u, stallCount: %d      ",
       state,
-      currentDir, noloadBatt, batt,
+      getDirection(), noloadBatt, batt,
+      noloadBatt - batt,
+      /* I = V / R */ (1000 * (noloadBatt - batt)) / params.shunt_milliohms,
       Rmotor / 1000.0,
-      params.dc_milliohms / 1000,
+      params.dc_milliohms / 1000.0,
       /* I = V / R */ (1000 * batt) / Rmotor,
-      target, current, runTime);
-
-    if (getDirection() || target != current)
-      delay(40);
-    else
-      return;
+      target, current,
+      runTime, maxMotorTime, stallCount);
+      delay(samplePeriod);
   }
 }

@@ -98,6 +98,10 @@ uint32_t ow_init(OW* ow, int gpio_num) {
 }
 
 void ow_deinit(OW* ow) {
+  if (!ow) {
+    return;
+  }
+
   if (ow->tx_channel != NULL) {
     ESP_ERROR_CHECK_WITHOUT_ABORT(rmt_disable(ow->tx_channel));
     ESP_ERROR_CHECK_WITHOUT_ABORT(rmt_del_channel(ow->tx_channel));
@@ -118,4 +122,5 @@ void ow_deinit(OW* ow) {
   if (ow->rx_queue != NULL) {
     vQueueDelete(ow->rx_queue);
   }
+  *ow = (const OW){0};
 }

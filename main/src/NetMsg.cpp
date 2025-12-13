@@ -198,7 +198,7 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
   ESP_LOGI(TAG, "JSON message: %s", json);
 
   cJSON *current_heating_setpoint = cJSON_GetObjectItem(root, field_current_heating_setpoint);
-  cJSON *local_temperature_calibration = cJSON_GetObjectItem(root, field_current_heating_setpoint);
+  cJSON *local_temperature_calibration = cJSON_GetObjectItem(root, field_local_temperature_calibration);
   cJSON *system_mode = cJSON_GetObjectItem(root, field_system_mode);
   cJSON *sleep_time = cJSON_GetObjectItem(root, field_sleep_time);
   cJSON *resolution = cJSON_GetObjectItem(root, field_resolution);

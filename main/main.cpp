@@ -39,7 +39,6 @@ bool touchButtonPressed() {
 
 static RTC_DATA_ATTR int messgageChecks = 0;
 void checkForMessages(Trv *trv) {
-
   // Create `net` based on config
   // auto state = Trv::getLastState();
   // ESP_LOGI(TAG, "checkIncomingMessages using netMode %u", state->netMode);
@@ -141,7 +140,7 @@ extern "C" void app_main() {
 
     ESP_LOGI(TAG, "Check touch button/device name");
     if (!trv->deviceName()[0] || touchButtonPressed()) {
-      ESP_LOGI(TAG, "Touch button pressed");
+      ESP_LOGI(TAG, "Touch button pressed / device name '%s'", trv->deviceName());
       CaptivePortal portal(trv, trv->deviceName());
       switch (portal.exitStatus) {
         case exit_status_t::TEST_MODE: {
@@ -172,7 +171,7 @@ extern "C" void app_main() {
                 motor->wait();
                 if (motor->getValvePosition() != target) {
                   ESP_LOGW(TAG, "Failed to reach target %d, got %d. Sleeping.", target, motor->getValvePosition());
-                  failed = true;
+                  //failed = true;
                 }
                 delay(2000);
               }
