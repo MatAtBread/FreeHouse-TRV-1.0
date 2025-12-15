@@ -7,6 +7,7 @@
 #include "hal/uart_types.h"
 #include "esp_netif.h"
 #include "esp_pm.h"
+#include "esp_app_desc.h"
 #include "nvs_flash.h"
 
 #include "common/gpio/gpio.hpp"
@@ -99,6 +100,8 @@ void checkForMessages(Trv *trv) {
 // }
 
 static RTC_DATA_ATTR int wakeCount = 0;
+char versionDetail[110] = {0};
+
 extern "C" void app_main() {
 //  esp_log_level_set("*", ESP_LOG_WARN);
   esp_log_level_set(TAG, ESP_LOG_INFO);
@@ -109,7 +112,9 @@ extern "C" void app_main() {
   GPIO::pinMode(LED_BUILTIN, OUTPUT);
   GPIO::digitalWrite(LED_BUILTIN, false);
 
-  ESP_LOGI(TAG, "Build %s", versionDetail);
+  const auto app = esp_app_get_description();
+  snprintf((char *)versionDetail, sizeof versionDetail, "%s %s %s", app->version, app->date, app->time);
+  ESP_LOGI(TAG, "Build: %s", versionDetail);
   ESP_LOGI(TAG, "Wake: %d reset: %d count: %d", wakeCause, resetCause, wakeCount);
 
   esp_err_t ret = nvs_flash_init();

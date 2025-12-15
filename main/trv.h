@@ -20,7 +20,7 @@ extern "C" {
 #endif
 
 extern const char *TAG;
-extern const char *versionDetail;
+extern char versionDetail[];
 
 #ifdef __cplusplus
 }
