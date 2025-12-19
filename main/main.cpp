@@ -1,7 +1,7 @@
 // the setup function runs once when you press reset or power the board
-#define TOUCH_PIN 1
 
 #include "trv.h"
+#include "pins.h"
 
 #include "esp_sleep.h"
 #include "hal/uart_types.h"
@@ -83,7 +83,7 @@ void checkForMessages(Trv *trv) {
 //   ESP_LOGI(TAG, "Test fn called");
 //   BatteryMonitor* battery = new BatteryMonitor(0, 20);
 //   uint8_t currentPosition = 0;
-//   MotorController* mc = new MotorController(17, 19, battery, currentPosition, 660, 15000);
+//   MotorController* mc = new MotorController(17, 19, battery, currentPosition, 680, 15000);
 //   while (1) {
 //     mc->setDirection(1);
 //     delay(3000);
@@ -153,9 +153,9 @@ extern "C" void app_main() {
             delete trv;
             ESP_LOGI(TAG, "Enter test mode");
             // In test mode, we just cycle the valve and print the count
-            BatteryMonitor* battery = new BatteryMonitor(0, 20);
+            BatteryMonitor* battery = new BatteryMonitor(BATTERY, CHARGING);
             uint8_t currentPosition = 0;
-            MotorController* motor = new MotorController(17, 19, battery, currentPosition, state.config.motor);
+            MotorController* motor = new MotorController(MOTOR, NSLEEP, battery, currentPosition, state.config.motor);
             int count = 0;
             bool failed = false;
             GPIO::digitalWrite(LED_BUILTIN, false);

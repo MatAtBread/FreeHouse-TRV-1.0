@@ -1,12 +1,17 @@
 #include "../trv.h"
 #include "../common/gpio/gpio.hpp"
+extern "C" {
+  #include "pwm.h"
+}
 #include "MotorController.h"
 
-#define minMotorTime 250
+#define startRunIn        50
+#define runInStep         1
+#define minMotorTime      250
 #define maxMotorTimeClose 32000
-#define maxMotorTimeOpen 8000
-#define samplePeriod 40
-#define battSamplePeriod 440
+#define maxMotorTimeOpen  10000
+#define samplePeriod      40
+#define battSamplePeriod  440
 
 /* In testing:
   typical Vshunt at full stall in 0.23v (batt=4110mv, R=0.66ohms), making I=0.338mA and Rmotor=12.16-Rshunt, or 11.48ohms
@@ -14,16 +19,11 @@
 
   */
 
-extern "C" {
-  esp_err_t pwm_init(gpio_num_t gpio_pin);
-  void pwm_set_duty(uint8_t duty);  // 0=off, 64=100% on
-}
-
-MotorController::MotorController(uint8_t pinDir, uint8_t pinSleep, BatteryMonitor* battery, uint8_t &current, motor_params_t &params) :
+MotorController::MotorController(gpio_num_t pinDir, gpio_num_t pinSleep, BatteryMonitor* battery, uint8_t &current, motor_params_t &params) :
   pinDir(pinDir), pinSleep(pinSleep), battery(battery), current(current), params(params) {
   target = current;
-  //pwm_init((gpio_num_t)pinSleep);
-  GPIO::pinMode(pinSleep, OUTPUT);
+  run_in = 0;
+  pwm_init(pinSleep, (uint8_t)run_in);
   GPIO::pinMode(pinDir, OUTPUT);
   setDirection(0);
 }
@@ -33,7 +33,7 @@ MotorController::~MotorController() {
 }
 
 int MotorController::getDirection() {
-  if (GPIO::digitalRead(pinSleep) == false) return 0;
+  if (pwm_get_duty(pinSleep) == 0) return 0;
   return GPIO::digitalRead(pinDir) != params.reversed ? 1 : -1;
 }
 
@@ -43,17 +43,18 @@ void MotorController::setDirection(int dir) {
   ESP_LOGI(TAG, "MotorController::setDirection %d", dir);
   switch (dir) {
     case -1:
+      run_in = startRunIn;
       GPIO::digitalWrite(pinDir, false != params.reversed);
-      GPIO::digitalWrite(pinSleep, true);
       break;
     case 1:
+      run_in = startRunIn;
       GPIO::digitalWrite(pinDir, true != params.reversed);
-      GPIO::digitalWrite(pinSleep, true);
       break;
     default:
-      GPIO::digitalWrite(pinSleep, false);
+      run_in = 0;
       break;
   }
+  pwm_set_duty(pinSleep, (uint8_t)run_in);
 }
 
 void MotorController::setValvePosition(int pos) {
@@ -74,13 +75,6 @@ void MotorController::setValvePosition(int pos) {
 
 uint8_t MotorController::getValvePosition() {
   return current;
-}
-
-static int motorResistence(int Vmotor, int Vbatt, int Rshunt) {
-  const auto deltaV = Vbatt - Vmotor;
-  if (deltaV < 1)
-    return 999999;// Disconnected
-  return Vmotor * Rshunt / deltaV;
 }
 
 // The task depends on the members target & getDirection(), which is why we start it when any of them change
@@ -128,7 +122,10 @@ void MotorController::task() {
     }
 
     batt = (batt * (battSamplePeriod / samplePeriod) + battery->getValue()) / ((battSamplePeriod / samplePeriod) + 1);
-    const auto Rmotor = motorResistence(batt, noloadBatt, params.shunt_milliohms);
+    const auto shuntMilliVolts = noloadBatt > batt ? noloadBatt - batt : 1;
+    const auto milliAmps = ((1000 * shuntMilliVolts) / params.shunt_milliohms) + 1;
+    const auto stallMilliAmps = (1000 * batt) / (params.dc_milliohms + params.shunt_milliohms);
+    const auto motorMilliOhms = (1000 * batt) / milliAmps;
     const auto runTime = startTime ? now - startTime : 0;
     if (startTime)
       state = "running";
@@ -136,13 +133,25 @@ void MotorController::task() {
       noloadBatt = (noloadBatt * 7 + batt) / 8;
       state = "idle";
     } else {
-      if (Rmotor >= 1000000 /* 1k ohm */) {
+        state = "soft-limit";
+        if (runTime >= 3000 || milliAmps < stallMilliAmps / 6) {
+          state = "soft-done";
+          if (run_in < 64) {
+            run_in = run_in + runInStep; // 70-(25000/(runTime + 500)); -- reciprocal increments
+            if (run_in > 63) run_in = 63;
+            pwm_set_duty(pinSleep, (uint8_t)run_in);
+            state = "soft-ramp";
+          }
+        }
+
+      /*if (motorMilliOhms >= 1000000) {
         state = "disconnected";
         target = 50;
         current = 50;
         startTime = 0;
         setDirection(0);
-      } else if (runTime >= minMotorTime && Rmotor < params.dc_milliohms) {
+      } else*/
+      if (runTime >= minMotorTime && stallMilliAmps < milliAmps) {
         // Motor has stalled
         state = "stalled";
         current = target;
@@ -150,7 +159,6 @@ void MotorController::task() {
         startTime = 0;
       } else if (runTime > maxMotorTime) {
         // Motor has timed-out
-        startTime = 0;
         if (getDirection() == 1 && target == 100) {
           current = target;
           state = "opened";
@@ -158,22 +166,25 @@ void MotorController::task() {
           state = "timed-out";
           target = current;
         }
+        startTime = 0;
         setDirection(0);
       } else {
         current = 50 + getDirection();
       }
     }
 
-    ESP_LOGI(TAG, "\x1b[1A\rMotorController %s: dir: %d, noloadBatt %4umV, batt %4dmV (Δ%3umV, I=%3umA), Rmot %6.2f\xCE\xA9 (>%5.1f\xCE\xA9, I=%3umA), target %3d, current %3d, runTime: %5lu, timeout: %5u      ",
+    ESP_LOGI(TAG, "\x1b[1A\r""MotorController %10s: dir: %d, run_in: %2u, noloadBatt %4dmV, batt %4dmV (Δ%3dmV, I=%3dmA), Rmot %6.2f\xCE\xA9 (>%5.1f\xCE\xA9, Istall=%3umA), target %3d, current %3d, runTime: %5lu, timeout: %5u      ",
       state,
-      getDirection(), noloadBatt, batt,
-      noloadBatt - batt,
-      /* I = V / R */ (1000 * (noloadBatt - batt)) / params.shunt_milliohms,
-      Rmotor / 1000.0,
+      getDirection(),
+      (unsigned int)run_in,
+      noloadBatt, batt,
+      shuntMilliVolts,
+      milliAmps,
+      motorMilliOhms / 1000.0,
       params.dc_milliohms / 1000.0,
-      /* I = V / R */ (1000 * batt) / Rmotor,
+      stallMilliAmps,
       target, current,
       runTime, maxMotorTime);
-      delay(samplePeriod);
+    delay(samplePeriod);
   }
 }

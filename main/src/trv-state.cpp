@@ -5,12 +5,7 @@
 
 #include "trv-state.h"
 #include "mcu_temp.h"
-
-#define MOTOR 17     // D7
-#define NSLEEP 19    // D8
-#define CHARGING 20  // D9
-#define DTEMP 18     // D10
-#define BATTERY 0    // A0
+#include "pins.h"
 
 #define STATE_VERSION 7L
 
