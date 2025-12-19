@@ -9,8 +9,8 @@ FILE_DESCRIPTION(
 /* implementation_level */ '2;1');
 
 FILE_NAME(
-/* name */ 'Plunger.step',
-/* time_stamp */ '2025-12-09T21:50:26Z',
+/* name */ 'Plunger-2.3mm.step',
+/* time_stamp */ '2025-12-17T16:16:43Z',
 /* author */ (''),
 /* organization */ (''),
 /* preprocessor_version */ 'ST-DEVELOPER v20.1',
@@ -561,15 +561,15 @@ SOLID_ANGLE_UNIT()
 #508=PRODUCT_DEFINITION_SHAPE('',$,#511);
 #509=SHAPE_REPRESENTATION('',(#319),#501);
 #510=PRODUCT_DEFINITION_CONTEXT('part definition',#515,'design');
-#511=PRODUCT_DEFINITION('Plunger','Plunger',#512,#510);
+#511=PRODUCT_DEFINITION('Plunger-2.3mm','Plunger-2.3mm',#512,#510);
 #512=PRODUCT_DEFINITION_FORMATION('',$,#517);
-#513=PRODUCT_RELATED_PRODUCT_CATEGORY('Plunger','Plunger',(#517));
+#513=PRODUCT_RELATED_PRODUCT_CATEGORY('Plunger-2.3mm','Plunger-2.3mm',(#517));
 #514=APPLICATION_PROTOCOL_DEFINITION('international standard',
 'automotive_design',2009,#515);
 #515=APPLICATION_CONTEXT(
 'Core Data for Automotive Mechanical Design Process');
 #516=PRODUCT_CONTEXT('part definition',#515,'mechanical');
-#517=PRODUCT('Plunger','Plunger',$,(#516));
+#517=PRODUCT('Plunger-2.3mm','Plunger-2.3mm',$,(#516));
 #518=PRESENTATION_STYLE_ASSIGNMENT((#519));
 #519=SURFACE_STYLE_USAGE(.BOTH.,#520);
 #520=SURFACE_SIDE_STYLE('',(#521));
