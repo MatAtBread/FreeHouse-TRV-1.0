@@ -17,7 +17,7 @@ static PinMode lastMode[GPIO_NUM_MAX] = {(PinMode)0};
 static bool lastWrite[GPIO_NUM_MAX];
 
 void GPIO::pinMode(int pin, PinMode mode) {
-  if (lastMode[pin] != mode) {
+  /*if (lastMode[pin] != mode)*/ {
     gpio_reset_pin((gpio_num_t)pin);
     gpio_config_t cfg = {
       .pin_bit_mask = 1ULL << pin,

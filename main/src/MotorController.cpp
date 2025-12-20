@@ -1,12 +1,9 @@
 #include "../trv.h"
 #include "../common/gpio/gpio.hpp"
-extern "C" {
-  #include "pwm.h"
-}
 #include "MotorController.h"
 
-#define startRunIn        50
-#define runInStep         1
+//#define startRunIn        63
+//#define runInStep         1
 #define minMotorTime      250
 #define maxMotorTimeClose 32000
 #define maxMotorTimeOpen  10000
@@ -23,7 +20,8 @@ MotorController::MotorController(gpio_num_t pinDir, gpio_num_t pinSleep, Battery
   pinDir(pinDir), pinSleep(pinSleep), battery(battery), current(current), params(params) {
   target = current;
   run_in = 0;
-  pwm_init(pinSleep, (uint8_t)run_in);
+  //pwm_init(pinSleep, (uint8_t)run_in);
+  GPIO::pinMode(pinSleep, OUTPUT);
   GPIO::pinMode(pinDir, OUTPUT);
   setDirection(0);
 }
@@ -33,7 +31,7 @@ MotorController::~MotorController() {
 }
 
 int MotorController::getDirection() {
-  if (pwm_get_duty(pinSleep) == 0) return 0;
+  if (GPIO::digitalRead(pinSleep) == false) return 0;
   return GPIO::digitalRead(pinDir) != params.reversed ? 1 : -1;
 }
 
@@ -43,18 +41,21 @@ void MotorController::setDirection(int dir) {
   ESP_LOGI(TAG, "MotorController::setDirection %d", dir);
   switch (dir) {
     case -1:
-      run_in = startRunIn;
+      // run_in = startRunIn;
       GPIO::digitalWrite(pinDir, false != params.reversed);
+      GPIO::digitalWrite(pinSleep, true);
       break;
     case 1:
-      run_in = startRunIn;
+      // run_in = startRunIn;
       GPIO::digitalWrite(pinDir, true != params.reversed);
+      GPIO::digitalWrite(pinSleep, true);
       break;
     default:
-      run_in = 0;
+      GPIO::digitalWrite(pinSleep, false);
+      // run_in = 0;
       break;
   }
-  pwm_set_duty(pinSleep, (uint8_t)run_in);
+  // pwm_set_duty(pinSleep, (uint8_t)run_in);
 }
 
 void MotorController::setValvePosition(int pos) {
@@ -133,16 +134,6 @@ void MotorController::task() {
       noloadBatt = (noloadBatt * 7 + batt) / 8;
       state = "idle";
     } else {
-        state = "soft-limit";
-        if (runTime >= 3000 || milliAmps < stallMilliAmps / 6) {
-          state = "soft-done";
-          if (run_in < 64) {
-            run_in = run_in + runInStep; // 70-(25000/(runTime + 500)); -- reciprocal increments
-            if (run_in > 63) run_in = 63;
-            pwm_set_duty(pinSleep, (uint8_t)run_in);
-            state = "soft-ramp";
-          }
-        }
 
       /*if (motorMilliOhms >= 1000000) {
         state = "disconnected";
@@ -155,6 +146,12 @@ void MotorController::task() {
         // Motor has stalled
         state = "stalled";
         current = target;
+        // Back-off
+        const auto reverse = -getDirection();
+        setDirection(0);
+        delay(100);
+        setDirection(reverse);
+        delay(50);
         setDirection(0);
         startTime = 0;
       } else if (runTime > maxMotorTime) {
