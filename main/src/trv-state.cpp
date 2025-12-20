@@ -38,7 +38,7 @@ static RTC_DATA_ATTR trv_state_t globalState = {
     .resolution = 1, // // Added in STATE_VERSION 5
     .motor = {
       .shunt_milliohms = 680, // Added in STATE_VERSION 6
-      .dc_milliohms = 15000, // Added in STATE_VERSION 6
+      // .dc_milliohms = 15000, // Added in STATE_VERSION 6 removed in 7+
       .reversed = false, // Added in STATE_VERSION 7
     }
   }
@@ -66,7 +66,7 @@ Trv::Trv() {
     UPDATE_STATE(2, memset(state.config.passKey, 0, sizeof (state.config.passKey)));
     UPDATE_STATE(3, state.config.sleep_time = 20); // Default sleep time
     UPDATE_STATE(4, state.config.resolution = 3); // Default resolution 10-bit
-    UPDATE_STATE(5, state.config.motor.shunt_milliohms = 680; state.config.motor.dc_milliohms = 15000);
+    UPDATE_STATE(5, state.config.motor.shunt_milliohms = 680; /*state.config.motor.dc_milliohms = 15000*/);
     UPDATE_STATE(6, state.config.motor.reversed = false);
     r = sizeof(state);
   }
@@ -81,7 +81,7 @@ Trv::Trv() {
     globalState.config.current_heating_setpoint = 21;
     globalState.config.sleep_time = 20;
     globalState.config.resolution = 3;
-    globalState.config.motor = { .shunt_milliohms = 680, .dc_milliohms = 15000, .reversed = false };
+    globalState.config.motor = { .shunt_milliohms = 680, .reversed = false };
   } else {
     globalState.config = state.config;
   }
@@ -139,7 +139,7 @@ std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
     "\"resolution\":" << (0.5 / (float)(1 << s.config.resolution)) << ","
     "\"unpair\":false,"
     "\"shunt_milliohms\":" << s.config.motor.shunt_milliohms << ","
-    "\"motor_dc_milliohms\":" << s.config.motor.dc_milliohms << ","
+    //"\"motor_dc_milliohms\":" << s.config.motor.dc_milliohms << ","
     "\"motor_reversed\":" << (s.config.motor.reversed ? "true":"false") <<
     "}";
 
@@ -164,14 +164,14 @@ void Trv::resetValve() {
   setSystemMode(globalState.config.system_mode);
 }
 
-void Trv::setMotorParameters(int shunt_milliohms, int motor_dc_milliohms, int reversed) {
-  ESP_LOGI(TAG, "Trv::setMotorParameters shunt %d motor dc %d reversed %d", shunt_milliohms, motor_dc_milliohms, reversed);
+void Trv::setMotorParameters(int shunt_milliohms, int reversed) {
+  ESP_LOGI(TAG, "Trv::setMotorParameters shunt %d reversed %d", shunt_milliohms, reversed);
   if (shunt_milliohms > 0) {
     globalState.config.motor.shunt_milliohms = shunt_milliohms;
   }
-  if (motor_dc_milliohms > 0) {
-    globalState.config.motor.dc_milliohms = motor_dc_milliohms;
-  }
+  // if (motor_dc_milliohms > 0) {
+  //   globalState.config.motor.dc_milliohms = motor_dc_milliohms;
+  // }
   if (reversed != -1) {
     globalState.config.motor.reversed = reversed ? true : false;
   }

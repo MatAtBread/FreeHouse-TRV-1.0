@@ -83,7 +83,7 @@ public:
   bool is_charging();
   void setNetMode(net_mode_t mode, trv_mqtt_t *mqtt = NULL);
   void setSleepTime(int seconds);
-  void setMotorParameters(int shunt_milliohms, int motor_dc_milliohms, int reversed = -1);
+  void setMotorParameters(int shunt_milliohms, int reversed = -1);
 
   static const char* deviceName();
   static uint32_t stateVersion();

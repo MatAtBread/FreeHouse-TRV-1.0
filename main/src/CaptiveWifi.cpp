@@ -112,11 +112,11 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
   } else if (startsWith(url, "/sleep_time-")) {
     trv->setSleepTime(atoi(url + 12));
   } else if (startsWith(url, "/shunt-")) {
-    trv->setMotorParameters(atoi(url + 7),0);
-  } else if (startsWith(url, "/motordc-")) {
-    trv->setMotorParameters(0,atoi(url + 9));
+    trv->setMotorParameters(atoi(url + 7));
+  // } else if (startsWith(url, "/motordc-")) {
+  //   trv->setMotorParameters(0,atoi(url + 9));
   } else if (startsWith(url, "/reversed-")) {
-    trv->setMotorParameters(0,0,atoi(url + 10));
+    trv->setMotorParameters(0,atoi(url + 10));
   } else if (startsWith(url, "/close")) {
     exitPortal(CLOSED);
   } else if (startsWith(url, "/test-mode")) {
@@ -250,9 +250,9 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
       "<tr><td>Shunt</td>"
         "<td><input style=\"width:6em;\" type=\"number\" value=\"" << (state.config.motor.shunt_milliohms) << "\" onchange='window.location.href = \"/shunt-\"+this.value'>mΩ</td>"
       "</tr>\n"
-      "<tr><td>Motor</td>"
-        "<td><input style=\"width:6em;\"  type=\"number\" value=\"" << (state.config.motor.dc_milliohms) << "\" onchange='window.location.href = \"/motordc-\"+this.value'>mΩ</td>"
-      "</tr>\n"
+      // "<tr><td>Motor</td>"
+      //   "<td><input style=\"width:6em;\"  type=\"number\" value=\"" << (state.config.motor.dc_milliohms) << "\" onchange='window.location.href = \"/motordc-\"+this.value'>mΩ</td>"
+      // "</tr>\n"
       "<tr><td>Motor reversed</td>"
         "<td><input type=\"checkbox\" " << (state.config.motor.reversed ? "checked":"") << " onchange='window.location.href = \"/reversed-\"+(this.checked?1:0)'></td>"
       "</tr>\n"

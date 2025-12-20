@@ -243,10 +243,10 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
   }
 
   auto shunt_value = cJSON_IsNumber(shunt_milliohms) ? shunt_milliohms->valueint : 0;
-  auto motor_value = cJSON_IsNumber(motor_dc_milliohms) ? motor_dc_milliohms->valueint : 0;
+  //auto motor_value = cJSON_IsNumber(motor_dc_milliohms) ? motor_dc_milliohms->valueint : 0;
   auto reversed_value = cJSON_IsBool(motor_reversed) ? cJSON_IsTrue(motor_reversed) : cJSON_IsFalse(motor_reversed) ? 0 : -1;
-  if (shunt_value || motor_value || reversed_value != -1) {
-    trv->setMotorParameters(shunt_value, motor_value, reversed_value);
+  if (shunt_value || reversed_value != -1) {
+    trv->setMotorParameters(shunt_value, reversed_value);
   }
 
   cJSON *ota = cJSON_GetObjectItem(root, "ota");

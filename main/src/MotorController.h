@@ -6,7 +6,6 @@
 
 typedef struct motor_params_s {
   int shunt_milliohms;
-  int dc_milliohms;
   bool reversed;
 } motor_params_t;
 
@@ -16,7 +15,6 @@ class MotorController: public WithTask {
   gpio_num_t pinDir;
   gpio_num_t pinSleep;
   BatteryMonitor* battery;
-  volatile uint8_t run_in;
   volatile uint8_t target;
   volatile uint8_t& current;
   motor_params_t& params;
