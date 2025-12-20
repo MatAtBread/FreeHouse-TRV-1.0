@@ -175,11 +175,12 @@ void MotorController::task() {
     ESP_LOGI(TAG, "%s", bar);
 
     const auto milliAmps = ((1000 * shuntMilliVolts) / params.shunt_milliohms) + 1;
-    ESP_LOGI(TAG, "MotorController %10s: dir: %d, noloadBatt %4dmV, batt %4dmV (Δ%3dmV, I=%3dmA), Rmot %6.2f\xCE\xA9, target %3d, current %3d, runTime: %5lu, timeout: %5u    %s",
+    ESP_LOGI(TAG, "MotorController %10s: dir: %d, noloadBatt %4dmV, batt %4dmV (ΔV %3dmV, ΔVavg %3dmV, I=%3dmA), Rmot %6.2f\xCE\xA9, target %3d, current %3d, runTime: %5lu, timeout: %5u    %s",
       state,
       getDirection(),
       noloadBatt, batt,
       shuntMilliVolts,
+      avgShunt,
       milliAmps,
       (float)batt / (float)milliAmps,
       target, current,

@@ -10,7 +10,7 @@ FILE_DESCRIPTION(
 
 FILE_NAME(
 /* name */ 'Base.step',
-/* time_stamp */ '2025-12-20T02:33:48Z',
+/* time_stamp */ '2025-12-20T12:41:59Z',
 /* author */ (''),
 /* organization */ (''),
 /* preprocessor_version */ 'ST-DEVELOPER v20.1',
@@ -4989,9 +4989,9 @@ SOLID_ANGLE_UNIT()
 #4782=SURFACE_STYLE_USAGE(.BOTH.,#4783);
 #4783=SURFACE_SIDE_STYLE('',(#4784));
 #4784=SURFACE_STYLE_FILL_AREA(#4785);
-#4785=FILL_AREA_STYLE('Plastic - Glossy (White)',(#4786));
-#4786=FILL_AREA_STYLE_COLOUR('Plastic - Glossy (White)',#4787);
-#4787=COLOUR_RGB('Plastic - Glossy (White)',0.964705882352941,0.964705882352941,
-0.952941176470588);
+#4785=FILL_AREA_STYLE('Plastic - Glossy (Grey)',(#4786));
+#4786=FILL_AREA_STYLE_COLOUR('Plastic - Glossy (Grey)',#4787);
+#4787=COLOUR_RGB('Plastic - Glossy (Grey)',0.701960784313725,0.701960784313725,
+0.701960784313725);
 ENDSEC;
 END-ISO-10303-21;

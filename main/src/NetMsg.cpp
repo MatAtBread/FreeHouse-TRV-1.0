@@ -184,7 +184,7 @@ const char* NetMsg::writeable[] = {
     field_resolution,
     field_unpair,
     field_shunt_milliohms,
-    field_motor_dc_milliohms,
+//    field_motor_dc_milliohms,
     field_motor_reversed,
     NULL
 };
@@ -204,7 +204,7 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
   cJSON *resolution = cJSON_GetObjectItem(root, field_resolution);
   cJSON *unpair = cJSON_GetObjectItem(root, field_unpair);
   cJSON *shunt_milliohms = cJSON_GetObjectItem(root, field_shunt_milliohms);
-  cJSON *motor_dc_milliohms = cJSON_GetObjectItem(root, field_motor_dc_milliohms);
+//  cJSON *motor_dc_milliohms = cJSON_GetObjectItem(root, field_motor_dc_milliohms);
   cJSON *motor_reversed = cJSON_GetObjectItem(root, field_motor_reversed);
 
   auto doUnpair = cJSON_IsTrue(unpair);

@@ -10,7 +10,7 @@ FILE_DESCRIPTION(
 
 FILE_NAME(
 /* name */ 'Batt holder.step',
-/* time_stamp */ '2025-12-20T02:33:48Z',
+/* time_stamp */ '2025-12-20T12:41:59Z',
 /* author */ (''),
 /* organization */ (''),
 /* preprocessor_version */ 'ST-DEVELOPER v20.1',
@@ -2872,8 +2872,9 @@ SOLID_ANGLE_UNIT()
 #2632=SURFACE_STYLE_USAGE(.BOTH.,#2633);
 #2633=SURFACE_SIDE_STYLE('',(#2634));
 #2634=SURFACE_STYLE_FILL_AREA(#2635);
-#2635=FILL_AREA_STYLE('Steel - Satin',(#2636));
-#2636=FILL_AREA_STYLE_COLOUR('Steel - Satin',#2637);
-#2637=COLOUR_RGB('Steel - Satin',0.627450980392157,0.627450980392157,0.627450980392157);
+#2635=FILL_AREA_STYLE('Plastic - Glossy (Grey)',(#2636));
+#2636=FILL_AREA_STYLE_COLOUR('Plastic - Glossy (Grey)',#2637);
+#2637=COLOUR_RGB('Plastic - Glossy (Grey)',0.701960784313725,0.701960784313725,
+0.701960784313725);
 ENDSEC;
 END-ISO-10303-21;
