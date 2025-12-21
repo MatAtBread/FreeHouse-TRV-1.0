@@ -3,8 +3,7 @@
 #include "MotorController.h"
 
 #define minMotorTime      400
-#define maxMotorTimeClose 10000
-#define maxMotorTimeOpen  10000
+#define maxMotorTime      10000
 #define samplePeriod      40
 #define battSamplePeriod  200
 
@@ -102,7 +101,6 @@ void MotorController::task() {
   int batt = noloadBatt;
   int totalShunt = 0;
   int count = 0;
-  auto maxMotorTime = getValvePosition() == 0 ? maxMotorTimeOpen : maxMotorTimeClose;
   ESP_LOGI(TAG, "MotorController %s: noloadBatt %f, target %d, current %d, timeout %d",
       state,
       noloadBatt / 1000.0,
@@ -116,8 +114,6 @@ void MotorController::task() {
     if (target != current) {
       const auto dir = target > current ? 1 : -1;
       if (dir != getDirection()) {
-        if (startTime)
-          maxMotorTime = maxMotorTimeClose;
         setDirection(dir);
         startTime = now;
         state = "seeking";
@@ -135,7 +131,12 @@ void MotorController::task() {
       noloadBatt = (noloadBatt * 7 + batt) / 8;
       state = "idle";
     } else {
-      if (runTime >= minMotorTime && (shuntMilliVolts * 100) > (166 * avgShunt)) {
+      if (avgShunt > 400) {
+        state = "stuck";
+        target = current;
+        setDirection(0);
+        return;
+      } else if (runTime >= minMotorTime && (shuntMilliVolts * 100) > (150 * avgShunt)) {
         // Motor has stalled
         state = "stalled";
         current = target;
@@ -144,7 +145,7 @@ void MotorController::task() {
         setDirection(0);
         delay(100);
         setDirection(reverse);
-        delay(50);
+        delay(200);
         setDirection(0);
         startTime = 0;
       } else if (runTime > maxMotorTime) {
