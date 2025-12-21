@@ -1,10 +1,9 @@
-#include "trv.h"
 #include "CaptiveWifi.h"
 
-#include "esp_sleep.h"
 #include "../common/gpio/gpio.hpp"
 
 #include <sstream>
+#include <trv.h>
 
 #define PORTAL_TTL  60000
 #define MULTILINE_STRING(...) #__VA_ARGS__
@@ -55,13 +54,16 @@ const char *systemModes[] = {
 const char accessPointName[] = "FreeHouse-TRV";
 
 bool startsWith(const char *search, const char *match) {
-    return strncmp(search, match, strlen(match))==0;
+  return strncmp(search, match, strlen(match)) == 0;
 }
 
 static uint8_t hexValue(const char c) {
-  if (c >= '0' && c <= '9') return c - '0';
-  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  if (c >= '0' && c <= '9')
+    return c - '0';
+  if (c >= 'A' && c <= 'F')
+    return c - 'A' + 10;
+  if (c >= 'a' && c <= 'f')
+    return c - 'a' + 10;
   return 0;
 }
 
@@ -80,27 +82,30 @@ static void unencode(char *buf, const char *src, int size) {
   *buf = 0;
 }
 
-esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
+static const char* sepdef(char **a, const char *b, const char *c) {
+  const auto p = strsep(a,b);
+  return p ? p : c;
+}
+esp_err_t CaptivePortal::getHandler(httpd_req_t *req) {
+  static char buffer[sizeof req->uri];
+
   ESP_LOGI(TAG, "Serve %s", req->uri);
   if (exitStatus != NONE) {
-      std::stringstream html;
-      httpd_resp_set_type(req, "text/html");
-      html << "<html><body>Closing..." << exitStatus << "</body></html>";
-      httpd_resp_send(req, html.str().c_str(), HTTPD_RESP_USE_STRLEN);
-      return ESP_OK;
+    std::stringstream html;
+    httpd_resp_set_type(req, "text/html");
+    html << "<html><body>Closing..." << exitStatus << "</body></html>";
+    httpd_resp_send(req, html.str().c_str(), HTTPD_RESP_USE_STRLEN);
+    return ESP_OK;
   }
 
   timeout = millis() + PORTAL_TTL;
 
   auto url = req->uri;
 
-  bool isEspNow = startsWith(url, "/net-esp/");
-
   // Check the URLs to manage the TRV
   if (startsWith(url, "/process")) {
-    const char *json = strchr(url,'?');
+    const char *json = strchr(url, '?');
     if (json) {
-      static char buffer[sizeof req->uri];
       unencode(buffer, json + 1, sizeof buffer);
       trv->processNetMessage(buffer);
     }
@@ -111,50 +116,51 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
   } else if (startsWith(url, "/power-off")) {
     exitPortal(POWER_OFF);
   } else if (startsWith(url, "/set-passphrase/")) {
-      char passphrase[64];
-      unencode(passphrase, req->uri + 16, sizeof(passphrase));
-      auto passKey = trv->getState(false).config.passKey;
+    char passphrase[64];
+    unencode(passphrase, req->uri + 16, sizeof(passphrase));
+    auto passKey = trv->getState(false).config.passKey;
       if (strlen(passphrase) && get_key_for_passphrase(passphrase,(uint8_t *)passKey) == 0) {
-        trv->saveState();
-      }
-  } else if (isEspNow || startsWith(url, "/net-mqtt/")) {
-    std::string mqConf = url + 9;
-    std::string device = mqConf.substr(0,mqConf.find('-'));
-    mqConf = mqConf.substr(device.length()+1);
-    std::string ssid = mqConf.substr(0,mqConf.find('-'));
-    mqConf = mqConf.substr(ssid.length()+1);
-    std::string pwd = mqConf.substr(0,mqConf.find('-'));
-    mqConf = mqConf.substr(pwd.length()+1);
-    std::string mqtt = mqConf.substr(0, mqConf.find(' ')); // TODO: Malformed headers might make the index -1
-
-    trv_mqtt_t mqttConfig;
-    unencode(mqttConfig.device_name, device.c_str(), sizeof mqttConfig.device_name);
-    unencode((char *)mqttConfig.wifi_ssid, ssid.c_str(), sizeof mqttConfig.wifi_ssid);
-    unencode((char *)mqttConfig.wifi_pwd, pwd.c_str(), sizeof mqttConfig.wifi_pwd);
-    unencode(mqttConfig.mqtt_server, mqtt.c_str(), sizeof mqttConfig.mqtt_server);
-    mqttConfig.mqtt_port = 1883;
-    std::string decoded_mqtt_host = std::string(mqttConfig.mqtt_server);
-    auto colon = decoded_mqtt_host.find(':');
-    if (colon > 0 && colon < (sizeof mqttConfig.mqtt_server)-1) {
-      mqttConfig.mqtt_port = atoi(decoded_mqtt_host.substr(colon+1).c_str());
-      mqttConfig.mqtt_server[colon] = 0;
+      trv->saveState();
     }
-
-    trv->setNetMode(isEspNow ? NET_MODE_ESP_NOW : NET_MODE_MQTT, &mqttConfig);
-    delay(200);
-    esp_restart();
   } else if (startsWith(url, "/net-zigbee")) {
     trv->setNetMode(NET_MODE_ZIGBEE);
     delay(200);
     esp_restart();
+  } else if (startsWith(url, "/net-")) {
+    unencode(buffer, strchr(url + 1, '/') + 1, sizeof buffer);
+    ESP_LOGI(TAG, "Set networking %s", buffer);
+
+    char *saveptr = buffer;
+    const char *device = sepdef(&saveptr, "\x1D", "");
+    ESP_LOGI(TAG, "Set networking device: %s", device);
+    const char *ssid = sepdef(&saveptr, "\x1D", "");
+    ESP_LOGI(TAG, "Set networking ssid: %s", ssid);
+    const char *pwd = sepdef(&saveptr, "\x1D", "");
+    ESP_LOGI(TAG, "Set networking pwd: %s", pwd);
+    const char *mqtt = sepdef(&saveptr, ":", "");
+    ESP_LOGI(TAG, "Set networking mqtt: %s", mqtt);
+    const char *port = sepdef(&saveptr, ":", "");
+    ESP_LOGI(TAG, "Set networking port: %s", port);
+
+    trv_mqtt_t mqttConfig;
+    strncpy((char *)mqttConfig.device_name, device, sizeof mqttConfig.device_name);
+    strncpy((char *)mqttConfig.wifi_ssid, ssid, sizeof mqttConfig.wifi_ssid);
+    strncpy((char *)mqttConfig.wifi_pwd, pwd, sizeof mqttConfig.wifi_pwd);
+    strncpy(mqttConfig.mqtt_server, mqtt, sizeof mqttConfig.mqtt_server);
+    mqttConfig.mqtt_port = 1883;
+    if (port[0])
+      mqttConfig.mqtt_port = atoi(port);
+    trv->setNetMode(startsWith(url, "/net-esp") ? NET_MODE_ESP_NOW : NET_MODE_MQTT, &mqttConfig);
+    delay(200);
+    esp_restart();
   }
 
-  if (strcmp(url,root)) {
-      httpd_resp_set_status(req, "302 Found");
-      httpd_resp_set_hdr(req, "Location", "/");
-      const char *resp_str = "<html><body>Redirecting</body></html>";
-      httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN );
-      return ESP_OK;
+  if (strcmp(url, root)) {
+    httpd_resp_set_status(req, "302 Found");
+    httpd_resp_set_hdr(req, "Location", "/");
+    const char *resp_str = "<html><body>Redirecting</body></html>";
+    httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
+    return ESP_OK;
   } else {
     // Send back the current status
     httpd_resp_set_type(req, "text/html");
@@ -172,52 +178,53 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
       "<style>* { font-family: sans-serif; } button { display: block; margin: 0.5em; }</style>\n"
       "<script>"
       MULTILINE_STRING(
-        function ota_upload(elt) {
-          elt.disabled = true;
-          const input = document.getElementById('firmware');
-          if (!input.files.length || !(input.files[0] instanceof Blob)) {
-            alert('Please select a file.');
-            return;
-          }
+function ota_upload(elt) {
+  elt.disabled = true;
+  const input = document.getElementById('firmware');
+  if (!input.files.length || !(input.files[0] instanceof Blob)) {
+    alert('Please select a file.');
+    return;
+  }
 
-          const file = input.files[0];
-          const xhr = new XMLHttpRequest();
+  const file = input.files[0];
+  const xhr = new XMLHttpRequest();
 
-          // Optional: Show progress in the console; replace with UI update as needed
-          xhr.upload.onprogress = function(event) {
-            if (event.lengthComputable) {
-              const percentComplete = (event.loaded / event.total) * 100;
-              elt.textContent = (`${percentComplete.toFixed(2)}% complete`);
-            } else {
-              elt.textContent = (`Uploaded ${event.loaded} bytes`);
-            }
-          };
+  // Optional: Show progress in the console; replace with UI update as needed
+  xhr.upload.onprogress = function(event) {
+    if (event.lengthComputable) {
+      const percentComplete = (event.loaded / event.total) * 100;
+      elt.textContent = (`${percentComplete.toFixed(2)}% complete`);
+    } else {
+      elt.textContent = (`Uploaded ${event.loaded} bytes`);
+    }
+  };
 
-          xhr.onload = function() {
-            if (xhr.status === 200) {
-              alert('Upload successful!');
-            } else {
-              alert('Upload failed.');
-            }
-            elt.disabled = false;
-          };
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      alert('Upload successful!');
+    } else {
+      alert('Upload failed.');
+    }
+    elt.disabled = false;
+  };
 
-          xhr.onerror = function() {
-            alert('Upload error\n\n' + xhr.statusText);
-            elt.disabled = false;
-          };
+  xhr.onerror = function() {
+    alert('Upload error\n\n' + xhr.statusText);
+    elt.disabled = false;
+  };
 
-          xhr.open('POST', '/ota', true);
-          xhr.send(file);
-        }
-        function processMessage(e,k,v) {
-          if (e instanceof HTMLElement) {
-            if (k === undefined) k = e.name;
-            if (v === undefined) v = Number(e.value);
-          }
-          window.location.href = "/process?"+JSON.stringify({[k]:v})
-        }
-      )
+  xhr.open('POST', '/ota', true);
+  xhr.send(file);
+}
+
+function processMessage(e,k,v) {
+  if (e instanceof HTMLElement) {
+    if (k === undefined) k = e.name;
+    if (v === undefined) v = Number(e.value);
+  }
+  window.location.href = "/process?"+JSON.stringify({[k]:v})
+}
+)
       "</script>"
       "</head>\n"
       "<body>\n"
@@ -227,44 +234,44 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
       "<input name='system_mode' onclick='processMessage(this,undefined,\"" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF] << "\")' type='radio' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF ? checked : "") << "/>" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF] << "\n"
       "<input name='system_mode' onclick='processMessage(this,undefined,\"" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP] << "\")' type='radio' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP ? checked : "") << "/>" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP] << "\n"
       "<table>\n"
-      "<tr><td>valve</td><td>" << (int)state.sensors.position << "</td></tr>\n"
-      "<tr><td>syetem mode</td><td>" << systemModes[state.config.system_mode] << '(' << state.config.system_mode << ")</td></tr>\n"
-      "<tr><td>local_temperature</td><td>" << state.sensors.local_temperature << " °C</td></tr>\n"
-      "<tr><td>sensor_temperature</td><td>" << state.sensors.sensor_temperature << " °C</td></tr>\n"
-      "<tr><td>battery (raw)</td><td>" << state.sensors.battery_raw << "mV</td></tr>\n"
-      "<tr><td>battery %</td><td>" << (int)state.sensors.battery_percent << "%</td></tr>\n"
-      "<tr><td>power source</td><td>" << (state.sensors.is_charging ? "charging" : "battery power") << "</td></tr>\n"
-      "<tr><td>heating setpoint</td>"
-        "<td><input style='width:6em;' type='number' value='" << (state.config.current_heating_setpoint) << "' name='current_heating_setpoint' onchange='processMessage(this)'>°C</td>"
-      "</tr>\n"
-      "<tr><td>temp. calibration</td>"
-        "<td><input style='width:6em;' type='number' value='" << (state.config.local_temperature_calibration) << "' name='local_temperature_calibration' onchange='processMessage(this)'>°C</td>"
-      "</tr>\n"
-      "<tr><td>Temp. resoluation</td>"
-        "<td><select style='width:6em;' type='number' value='" << (int)(state.config.resolution) << "' name='resolution' onchange='processMessage(this,undefined,Number(this.selectedOptions[0].value))'>"
-        "<option value='0.5' " << (state.config.resolution==0 ? "selected":"") << ">0.5°C</option>"
-        "<option value='0.25' " << (state.config.resolution==1 ? "selected":"") << ">0.25°C</option>"
-        "<option value='0.125' " << (state.config.resolution==2 ? "selected":"") << ">0.125°C</option>"
-        "<option value='0.0625' " << (state.config.resolution==3 ? "selected":"") << ">0.0625°C</option>"
-        "</select></td>"
-      "</tr>\n"
-      "<tr><td>Sleep time</td>"
-        "<td><input style='width:6em;' type='number' value='" << (state.config.sleep_time) << "' name='sleep_time' onchange='processMessage(this)'>s</td>"
-      "</tr>\n"
-      "<tr><td>Shunt</td>"
-        "<td><input style='width:6em;' type='number' value='" << (state.config.motor.shunt_milliohms) << "' name='shunt_milliohms' onchange='processMessage(this)'>\xE2\x84\xA6</td>"
-      "</tr>\n"
-      "<tr><td>Motor reversed</td>"
-        "<td><input type=\"checkbox\" " << (state.config.motor.reversed ? "checked":"") << " name='motor_reversed' onchange='processMessage(this,undefined,this.checked)'></td>"
-      "</tr>\n"
-      "</table>\n"
+        "<tr><td>valve</td><td>" << (int)state.sensors.position << "</td></tr>\n"
+        "<tr><td>syetem mode</td><td>" << systemModes[state.config.system_mode] << '(' << state.config.system_mode << ")</td></tr>\n"
+        "<tr><td>local_temperature</td><td>" << state.sensors.local_temperature << " °C</td></tr>\n"
+        "<tr><td>sensor_temperature</td><td>" << state.sensors.sensor_temperature << " °C</td></tr>\n"
+        "<tr><td>battery (raw)</td><td>" << state.sensors.battery_raw << "mV</td></tr>\n"
+        "<tr><td>battery %</td><td>" << (int)state.sensors.battery_percent << "%</td></tr>\n"
+        "<tr><td>power source</td><td>" << (state.sensors.is_charging ? "charging" : "battery power") << "</td></tr>\n"
+        "<tr><td>heating setpoint</td>"
+          "<td><input style='width:6em;' type='number' value='" << (state.config.current_heating_setpoint) << "' name='current_heating_setpoint' onchange='processMessage(this)'>°C</td>"
+        "</tr>\n"
+        "<tr><td>temp. calibration</td>"
+          "<td><input style='width:6em;' type='number' value='" << (state.config.local_temperature_calibration) << "' name='local_temperature_calibration' onchange='processMessage(this)'>°C</td>"
+        "</tr>\n"
+        "<tr><td>Temp. resoluation</td>"
+          "<td><select style='width:6em;' type='number' value='" << (int)(state.config.resolution) << "' name='resolution' onchange='processMessage(this,undefined,Number(this.selectedOptions[0].value))'>"
+            "<option value='0.5' " << (state.config.resolution==0 ? "selected":"") << ">0.5°C</option>"
+            "<option value='0.25' " << (state.config.resolution==1 ? "selected":"") << ">0.25°C</option>"
+            "<option value='0.125' " << (state.config.resolution==2 ? "selected":"") << ">0.125°C</option>"
+            "<option value='0.0625' " << (state.config.resolution==3 ? "selected":"") << ">0.0625°C</option>"
+           "</select></td>"
+        "</tr>\n"
+        "<tr><td>Sleep time</td>"
+          "<td><input style='width:6em;' type='number' value='" << (state.config.sleep_time) << "' name='sleep_time' onchange='processMessage(this)'>s</td>"
+        "</tr>\n"
+        "<tr><td>Shunt</td>"
+          "<td><input style='width:6em;' type='number' value='" << (state.config.motor.shunt_milliohms) << "' name='shunt_milliohms' onchange='processMessage(this)'>\xE2\x84\xA6</td>"
+        "</tr>\n"
+        "<tr><td>Motor reversed</td>"
+            "<td><input type=\"checkbox\" " << (state.config.motor.reversed ? "checked":"") << " name='motor_reversed' onchange='processMessage(this,undefined,this.checked)'></td>"
+        "</tr>\n"
+        "</table>\n"
 
       "<h2>Networking</h2>"
       "<table>\n"
-      "<tr><td>Message comms mode</td><td>" << netModes[state.config.netMode] << "</td></tr>\n"
-      "<tr><td>MQTT/ESP-NOW device name</td><td><input id='device' value=\"" << state.config.mqttConfig.device_name << "\"></td></tr>\n"
-      "<tr><td><button onclick='window.location.href = \"/net-esp/\"+encodeURIComponent(\"device,ssid,pwd,mqtt\".split(\",\").map(id => document.getElementById(id).value).join(\"-\"))'>Enable ESP-NOW</button></td></tr>"
-      "<tr><td><button onclick=\"const n = prompt('Enter the new FreeHouse network passphrase'); if (n) fetch('/set-passphrase/'+encodeURIComponent(n));\">Set FreeHouse network name</button></td></tr>"
+        "<tr><td>Message comms mode</td><td>" << netModes[state.config.netMode] << "</td></tr>\n"
+        "<tr><td>MQTT/ESP-NOW device name</td><td><input id='device' value=\"" << state.config.mqttConfig.device_name << "\"></td></tr>\n"
+        "<tr><td><button onclick='window.location.href = \"/net-esp/\"+encodeURIComponent(\"device,ssid,pwd,mqtt\".split(\",\").map(id => document.getElementById(id)?.value).join(\"\x1D\"))'>Enable ESP-NOW</button></td></tr>"
+        "<tr><td><button onclick=\"const n = prompt('Enter the new FreeHouse network passphrase'); if (n) fetch('/set-passphrase/'+encodeURIComponent(n));\">Set FreeHouse network name</button></td></tr>"
       "</table>\n"
 
       // "<tr style='display:none;'><td>WiFi SSID</td><td><input id='ssid' value=\"" << state.config.mqttConfig.wifi_ssid << "\"></td></tr>\n"
