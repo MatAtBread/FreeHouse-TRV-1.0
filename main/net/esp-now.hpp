@@ -15,7 +15,7 @@ class EspNet {
         ~EspNet();
         void sendStateToHub(const trv_state_t &);
         void checkMessages();
-        void unpair();
+        static void unpair();
 
         // Internal referenced from statics
         void data_receive_callback(const esp_now_recv_info_t * esp_now_info, const uint8_t *data, int data_len);

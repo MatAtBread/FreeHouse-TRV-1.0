@@ -53,7 +53,7 @@ void Trv::processNetMessage(const char *json) {
 //  cJSON *motor_dc_milliohms = cJSON_GetObjectItem(root, field_motor_dc_milliohms);
   cJSON *motor_reversed = cJSON_GetObjectItem(root, field_motor_reversed);
 
-  auto doUnpair = cJSON_IsTrue(unpair);
+  auto unpairRequest = cJSON_IsTrue(unpair);
 
   if (cJSON_IsString(system_mode) && (system_mode->valuestring != NULL)) {
     for (esp_zb_zcl_thermostat_system_mode_t mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF;
@@ -110,7 +110,7 @@ void Trv::processNetMessage(const char *json) {
   // Free the root object
   cJSON_Delete(root);
 
-  if (doUnpair) {
-    // unpair();
+  if (unpairRequest) {
+    doUnpair();
   }
 }

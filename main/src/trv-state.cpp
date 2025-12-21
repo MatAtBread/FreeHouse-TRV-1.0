@@ -7,6 +7,7 @@
 #include "mcu_temp.h"
 #include "pins.h"
 #include "helpers.h"
+#include <net/esp-now.hpp>
 
 #define STATE_VERSION 7L
 
@@ -145,6 +146,10 @@ std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
     "}";
 
   return json.str();
+}
+
+void Trv::doUnpair() {
+  EspNet::unpair();
 }
 
 void Trv::saveState() {
