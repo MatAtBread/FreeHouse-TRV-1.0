@@ -10,7 +10,6 @@
 #include "esp_wifi_types.h"
 
 #include "helpers.h"
-#include "../src/NetMsg.h"
 #include "../src/board.h"
 #include "../common/encryption/encryption.h"
 
@@ -71,7 +70,7 @@ void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info, cons
 
   if (data[0] == '{') {
     // We got some data
-    processNetMessage((const char *)data, trv);
+    trv->processNetMessage((const char *)data);
   } else if (memcmp(data, "PACK", 4) == 0) {
     if (nextPair == NULL) {
       ESP_LOGI(TAG, "Pairing finished!");
@@ -138,8 +137,8 @@ EspNet::EspNet(Trv *trv) : trv(trv) {
     "\"build\":\"" << versionDetail << "\","
     "\"writeable\":[";
 
-    for (auto p = NetMsg::writeable; *p; p++) {
-      if (p != NetMsg::writeable) pairName << ",";
+    for (auto p = Trv::writeable; *p; p++) {
+      if (p != Trv::writeable) pairName << ",";
       pairName << "\"" << *p << "\"";
     }
     pairName << "]}";

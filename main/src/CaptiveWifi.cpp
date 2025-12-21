@@ -97,26 +97,13 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
   bool isEspNow = startsWith(url, "/net-esp/");
 
   // Check the URLs to manage the TRV
-  if (startsWith(url, "/mode-heat")) {
-    trv->setSystemMode(ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT);
-  } else if (startsWith(url, "/mode-auto")) {
-    trv->setSystemMode(ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO);
-  } else if (startsWith(url, "/mode-off")) {
-    trv->setSystemMode(ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF);
-  } else if (startsWith(url, "/mode-sleep")) {
-    trv->setSystemMode(ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP);
-  } else if (startsWith(url, "/temp-")) {
-    trv->setHeatingSetpoint(atof(url + 6));
-  } else if (startsWith(url, "/cali-")) {
-    trv->setTempCalibration(atof(url + 6));
-  } else if (startsWith(url, "/sleep_time-")) {
-    trv->setSleepTime(atoi(url + 12));
-  } else if (startsWith(url, "/shunt-")) {
-    trv->setMotorParameters(atoi(url + 7));
-  // } else if (startsWith(url, "/motordc-")) {
-  //   trv->setMotorParameters(0,atoi(url + 9));
-  } else if (startsWith(url, "/reversed-")) {
-    trv->setMotorParameters(0,atoi(url + 10));
+  if (startsWith(url, "/process")) {
+    const char *json = strchr(url,'?');
+    if (json) {
+      static char buffer[sizeof req->uri];
+      unencode(buffer, json + 1, sizeof buffer);
+      trv->processNetMessage(buffer);
+    }
   } else if (startsWith(url, "/close")) {
     exitPortal(CLOSED);
   } else if (startsWith(url, "/test-mode")) {
@@ -223,64 +210,76 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t* req) {
           xhr.open('POST', '/ota', true);
           xhr.send(file);
         }
-        )
+        function processMessage(e,k,v) {
+          if (e instanceof HTMLElement) {
+            if (k === undefined) k = e.name;
+            if (v === undefined) v = Number(e.value);
+          }
+          window.location.href = "/process?"+JSON.stringify({[k]:v})
+        }
+      )
       "</script>"
       "</head>\n"
       "<body>\n"
       "<h1>FreeHouse-TRV</h1>\n"
-      "<input onclick='window.location.href = \"/mode-heat\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT ? checked : "") << "/>Heat\n"
-      "<input onclick='window.location.href = \"/mode-auto\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO ? checked : "") << "/>Auto\n"
-      "<input onclick='window.location.href = \"/mode-off\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF ? checked : "") << "/>Off\n"
-      "<input onclick='window.location.href = \"/mode-sleep\"' type='radio' name='m' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP ? checked : "") << "/>Sleep\n"
+      "<input name='system_mode' onclick='processMessage(this,undefined,\"" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT] << "\")' type='radio' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT ? checked : "") << "/>" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT] << "\n"
+      "<input name='system_mode' onclick='processMessage(this,undefined,\"" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO] << "\")' type='radio' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO ? checked : "") << "/>" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO] << "\n"
+      "<input name='system_mode' onclick='processMessage(this,undefined,\"" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF] << "\")' type='radio' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF ? checked : "") << "/>" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF] << "\n"
+      "<input name='system_mode' onclick='processMessage(this,undefined,\"" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP] << "\")' type='radio' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP ? checked : "") << "/>" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP] << "\n"
       "<table>\n"
+      "<tr><td>valve</td><td>" << (int)state.sensors.position << "</td></tr>\n"
       "<tr><td>syetem mode</td><td>" << systemModes[state.config.system_mode] << '(' << state.config.system_mode << ")</td></tr>\n"
       "<tr><td>local_temperature</td><td>" << state.sensors.local_temperature << " °C</td></tr>\n"
       "<tr><td>sensor_temperature</td><td>" << state.sensors.sensor_temperature << " °C</td></tr>\n"
-      "<tr><td>temp. resolution</td><td>" << (0.5 / (float)((1 << state.config.resolution))) << "°C</td></tr>\n"
       "<tr><td>battery (raw)</td><td>" << state.sensors.battery_raw << "mV</td></tr>\n"
       "<tr><td>battery %</td><td>" << (int)state.sensors.battery_percent << "%</td></tr>\n"
       "<tr><td>power source</td><td>" << (state.sensors.is_charging ? "charging" : "battery power") << "</td></tr>\n"
-      "<tr><td>valve</td><td>" << (int)state.sensors.position << "</td></tr>\n"
       "<tr><td>heating setpoint</td>"
-        "<td><input style=\"width:6em;\" type=\"number\" value=\"" << (state.config.current_heating_setpoint) << "\" onchange='window.location.href = \"/temp-\"+this.value'>°C</td>"
+        "<td><input style='width:6em;' type='number' value='" << (state.config.current_heating_setpoint) << "' name='current_heating_setpoint' onchange='processMessage(this)'>°C</td>"
       "</tr>\n"
       "<tr><td>temp. calibration</td>"
-        "<td><input style=\"width:6em;\" type=\"number\" value=\"" << (state.config.local_temperature_calibration) << "\" onchange='window.location.href = \"/cali-\"+this.value'>°C</td>"
+        "<td><input style='width:6em;' type='number' value='" << (state.config.local_temperature_calibration) << "' name='local_temperature_calibration' onchange='processMessage(this)'>°C</td>"
+      "</tr>\n"
+      "<tr><td>Temp. resoluation</td>"
+        "<td><select style='width:6em;' type='number' value='" << (int)(state.config.resolution) << "' name='resolution' onchange='processMessage(this,undefined,Number(this.selectedOptions[0].value))'>"
+        "<option value='0.5' " << (state.config.resolution==0 ? "selected":"") << ">0.5°C</option>"
+        "<option value='0.25' " << (state.config.resolution==1 ? "selected":"") << ">0.25°C</option>"
+        "<option value='0.125' " << (state.config.resolution==2 ? "selected":"") << ">0.125°C</option>"
+        "<option value='0.0625' " << (state.config.resolution==3 ? "selected":"") << ">0.0625°C</option>"
+        "</select></td>"
+      "</tr>\n"
+      "<tr><td>Sleep time</td>"
+        "<td><input style='width:6em;' type='number' value='" << (state.config.sleep_time) << "' name='sleep_time' onchange='processMessage(this)'>s</td>"
       "</tr>\n"
       "<tr><td>Shunt</td>"
-        "<td><input style=\"width:6em;\" type=\"number\" value=\"" << (state.config.motor.shunt_milliohms) << "\" onchange='window.location.href = \"/shunt-\"+this.value'>mΩ</td>"
+        "<td><input style='width:6em;' type='number' value='" << (state.config.motor.shunt_milliohms) << "' name='shunt_milliohms' onchange='processMessage(this)'>\xE2\x84\xA6</td>"
       "</tr>\n"
-      // "<tr><td>Motor</td>"
-      //   "<td><input style=\"width:6em;\"  type=\"number\" value=\"" << (state.config.motor.dc_milliohms) << "\" onchange='window.location.href = \"/motordc-\"+this.value'>mΩ</td>"
-      // "</tr>\n"
       "<tr><td>Motor reversed</td>"
-        "<td><input type=\"checkbox\" " << (state.config.motor.reversed ? "checked":"") << " onchange='window.location.href = \"/reversed-\"+(this.checked?1:0)'></td>"
+        "<td><input type=\"checkbox\" " << (state.config.motor.reversed ? "checked":"") << " name='motor_reversed' onchange='processMessage(this,undefined,this.checked)'></td>"
       "</tr>\n"
-      "<tr><td>Message comms mode</td><td>" << netModes[state.config.netMode] << "</td></tr>\n"
-      "<tr><td>Sleep time</td>"
-        "<td><input style='width:4em;' maxLength=4 value='" << state.config.sleep_time << "' onchange='window.location.href=\"/sleep_time-\"+Number(this.value || 20)'> secs</td>"
-      "</tr>\n"
-
-      "<tr><td>MQTT/ESP-NOW device name</td><td><input id='device' value=\"" << state.config.mqttConfig.device_name << "\"></td></tr>\n"
-      "<tr style='display:none;'><td>WiFi SSID</td><td><input id='ssid' value=\"" << state.config.mqttConfig.wifi_ssid << "\"></td></tr>\n"
-      "<tr style='display:none;'><td>WiFi password</td><td><input id='pwd' value=\"" << state.config.mqttConfig.wifi_pwd << "\"></td></tr>\n"
-      "<tr style='display:none;'><td>MQTT server</td><td><input id='mqtt' value=\"" << state.config.mqttConfig.mqtt_server << ':' << state.config.mqttConfig.mqtt_port << "\"></td></tr>\n"
       "</table>\n"
-      "<button onclick='window.location.href = \"/net-esp/\"+encodeURIComponent(\"device,ssid,pwd,mqtt\".split(\",\").map(id => document.getElementById(id).value).join(\"-\"))'>Enable ESP-NOW</button>\n"
+
+      "<h2>Networking</h2>"
+      "<table>\n"
+      "<tr><td>Message comms mode</td><td>" << netModes[state.config.netMode] << "</td></tr>\n"
+      "<tr><td>MQTT/ESP-NOW device name</td><td><input id='device' value=\"" << state.config.mqttConfig.device_name << "\"></td></tr>\n"
+      "<tr><td><button onclick='window.location.href = \"/net-esp/\"+encodeURIComponent(\"device,ssid,pwd,mqtt\".split(\",\").map(id => document.getElementById(id).value).join(\"-\"))'>Enable ESP-NOW</button></td></tr>"
+      "<tr><td><button onclick=\"const n = prompt('Enter the new FreeHouse network passphrase'); if (n) fetch('/set-passphrase/'+encodeURIComponent(n));\">Set FreeHouse network name</button></td></tr>"
+      "</table>\n"
+
+      // "<tr style='display:none;'><td>WiFi SSID</td><td><input id='ssid' value=\"" << state.config.mqttConfig.wifi_ssid << "\"></td></tr>\n"
+      // "<tr style='display:none;'><td>WiFi password</td><td><input id='pwd' value=\"" << state.config.mqttConfig.wifi_pwd << "\"></td></tr>\n"
+      // "<tr style='display:none;'><td>MQTT server</td><td><input id='mqtt' value=\"" << state.config.mqttConfig.mqtt_server << ':' << state.config.mqttConfig.mqtt_port << "\"></td></tr>\n"
       // "<button onclick='window.location.href = \"/net-mqtt/\"+encodeURIComponent(\"device,ssid,pwd,mqtt\".split(\",\").map(id => document.getElementById(id).value).join(\"-\"))'>Enable MQTT</button>\n"
       // "<button onclick='window.location.href = \"/net-zigbee\"'>Disable MQTT</button>\n"
-
-      "<button onclick=\"const n = prompt('Enter the new FreeHouse network passphrase'); if (n) fetch('/set-passphrase/'+encodeURIComponent(n));\">Set FreeHouse network name</button>"
-
+      "<h2>Actions</h2>"
       "<button onclick='window.location.href = \"/close\"'>Close</button>\n"
       "<button onclick='window.location.href = \"/test-mode\"'>Test mode</button>\n"
       "<button onclick='window.location.href = \"/power-off\"'>Power Off</button>\n"
 
       "<h2>OTA Update</h2>"
-      "<div>"
-      "  <input type='file' id='firmware'>"
-      "  <button onclick='ota_upload(this)'>Update</button>"
-      "</div>"
+      "<input type='file' id='firmware'>"
+      "<button onclick='ota_upload(this)'>Update</button>"
       "<div>Current: " << versionDetail << "</div>"
       "</body></html>";
 

@@ -5,7 +5,7 @@
 #include "WithTask.h"
 
 typedef struct motor_params_s {
-  int shunt_milliohms;
+  int shunt_milliohms; // Only used for debugging
   bool reversed;
 } motor_params_t;
 

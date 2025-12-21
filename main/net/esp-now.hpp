@@ -1,10 +1,9 @@
 #include "esp_now.h"
 
-#include "../src/NetMsg.h"
 #include "../trv.h"
 #include "../src/trv-state.h"
 
-class EspNet: public NetMsg {
+class EspNet {
     protected:
         Trv* trv;
         uint8_t *joinPhrase = NULL;

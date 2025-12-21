@@ -1,168 +1,14 @@
 #include "esp_log.h"
-#include "esp_https_ota.h"
-#ifdef CONFIG_ESP_HTTPS_OTA_ALLOW_HTTP
-#include "esp_ota_ops.h"
-#include "esp_http_client.h"
-#endif
 
 #include "helpers.h"
-
-#include "wifi-sta.hpp"
 
 #include "string.h"
 #include "trv-state.h"
 #include "trv.h"
 #include "../common/gpio/gpio.hpp"
-#include "NetMsg.h"
 #include "cJSON.h"
 
 extern const char *systemModes[];
-
-static int64_t content_len = -1;
-static int64_t content_read = 0;
-static int lastPercent = -1;
-
-typedef struct {
-  esp_ota_handle_t handle;
-  const esp_partition_t *partition;
-} ota_data_t;
-
-esp_err_t _http_event_handler(esp_http_client_event_t *evt)
-{
-  ota_data_t *update = (ota_data_t *)evt->user_data;
-
-  switch(evt->event_id) {
-    case HTTP_EVENT_ERROR:
-        ESP_LOGI(TAG, "HTTP_EVENT_ERROR");
-        break;
-    case HTTP_EVENT_ON_CONNECTED:
-        ESP_LOGI(TAG, "HTTP_EVENT_ON_CONNECTED");
-        break;
-    case HTTP_EVENT_HEADER_SENT:
-        ESP_LOGI(TAG, "HTTP_EVENT_HEADER_SENT");
-        break;
-    case HTTP_EVENT_ON_HEADER:
-        ESP_LOGI(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value);
-        break;
-    case HTTP_EVENT_ON_DATA:
-        // ESP_LOGI(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
-        if (!esp_http_client_is_chunked_response(evt->client)) {
-            // If user_data buffer is configured, copy the response into the buffer
-            if (content_len == -1) {
-                content_len = esp_http_client_get_content_length(evt->client);
-                ESP_LOGI(TAG, "content_len=%lld", content_len);
-            }
-            content_read += evt->data_len;
-            int percent = (content_read * 100) / content_len;
-            if (percent != lastPercent) {
-                ESP_LOGI(TAG, "Download progress: %d%% (%lld of %lld)", percent, content_read, content_len);
-                lastPercent = percent;
-            }
-            GPIO::digitalWrite(LED_BUILTIN, !GPIO::digitalRead(LED_BUILTIN));
-            ERR_BACKTRACE(esp_ota_write(update->handle, evt->data, evt->data_len));
-        }
-        break;
-    case HTTP_EVENT_ON_FINISH:
-        ESP_LOGI(TAG, "HTTP_EVENT_ON_FINISH");
-        ERR_BACKTRACE(esp_ota_end(update->handle));
-        ERR_BACKTRACE(esp_ota_set_boot_partition(update->partition));
-        esp_restart();
-        break;
-    case HTTP_EVENT_DISCONNECTED:
-        ESP_LOGI(TAG, "HTTP_EVENT_DISCONNECTED");
-        break;
-    case HTTP_EVENT_REDIRECT:
-        ESP_LOGI(TAG, "HTTP_EVENT_REDIRECT");
-        //esp_http_client_set_header(evt->client, "From", "user@example.com");
-        esp_http_client_set_header(evt->client, "Accept", "text/html");
-        esp_http_client_set_redirection(evt->client);
-        break;
-  }
-  return ESP_OK;
-}
-
-class SoftWatchDog: public WithTask {
-  public:
-  int seconds;
-  bool cancel;
-  SoftWatchDog(int seconds): seconds(seconds) {
-    StartTask(SoftWatchDog);
-  }
-  ~SoftWatchDog() {
-    cancel = true;
-    wait();
-  }
-  void task() {
-    while (seconds-- > 0 && !cancel) {
-      ESP_LOGI(TAG, "SoftWatchDog %d %d", seconds, cancel);
-      vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }
-    if (!cancel && seconds <= 0) {
-      ESP_LOGW(TAG, "SoftWatchDog restart!");
-      vTaskDelay(100 / portTICK_PERIOD_MS);
-      esp_restart();
-    }
-  }
-};
-
-NetMsg::~NetMsg() {
-  if (otaUrl[0] && otaSsid[0]) {
-    std::string otaUrlStr = otaUrl;
-    if (!otaUrlStr.ends_with("/")) {
-      otaUrlStr += "/";
-    }
-    otaUrlStr += FREEHOUSE_MODEL;
-    otaUrlStr += "/";
-    otaUrlStr += CONFIG_IDF_TARGET;
-    otaUrlStr += "/";
-    otaUrlStr += "trv-1.bin";
-
-    WiFiStation sta((const uint8_t *)otaSsid, (const uint8_t *)otaPwd, Trv::deviceName(), 1);
-    sta.connect();
-
-    ESP_LOGI(TAG, "OTA update URL: %s, Wifi %s", otaUrlStr.c_str(), otaSsid);
-    esp_http_client_config_t config = {
-        .url = otaUrlStr.c_str(),
-        .cert_pem = NULL,
-        .timeout_ms = 5000,
-        .event_handler = _http_event_handler,
-        //.transport_type = HTTP_TRANSPORT_OVER_TCP
-    };
-
-    if (otaUrlStr.starts_with("http://")) {
-      // Get OTA partition
-//      SoftWatchDog *woof = new SoftWatchDog(150); // Max 2.5 mins to update
-      SoftWatchDog woof(150);
-      const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
-      esp_ota_handle_t update_handle = 0;
-      ERR_BACKTRACE(esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &update_handle));
-      ota_data_t od = {.handle = update_handle, .partition = update_partition};
-      config.user_data = &od;
-
-      esp_http_client_handle_t client = esp_http_client_init(&config);
-      esp_err_t err = esp_http_client_perform(client);
-      if (err == ESP_OK) {
-          ESP_LOGI(TAG, "HTTP GET Status = %d, content_length = %" PRId64,
-                  esp_http_client_get_status_code(client),
-                  esp_http_client_get_content_length(client));
-      } else {
-          ESP_LOGE(TAG, "HTTP GET request failed: %s", esp_err_to_name(err));
-      }
-      esp_http_client_cleanup(client);
-
-      ESP_LOGI(TAG, "Woof %d", woof.seconds);
-    } else {
-      esp_https_ota_config_t ota_config = {
-          .http_config = &config,
-      };
-      esp_err_t ret = esp_https_ota(&ota_config);
-
-      if (ret == ESP_OK) {
-        esp_restart();
-      }
-    }
-  }
-}
 
 #define FIELD(N) static const char field_##N[] = #N;
 
@@ -176,7 +22,7 @@ FIELD(shunt_milliohms);
 FIELD(motor_dc_milliohms);
 FIELD(motor_reversed);
 
-const char* NetMsg::writeable[] = {
+const char* Trv::writeable[] = {
     field_current_heating_setpoint,
     field_local_temperature_calibration,
     field_system_mode,
@@ -189,7 +35,7 @@ const char* NetMsg::writeable[] = {
     NULL
 };
 
-void NetMsg::processNetMessage(const char *json, Trv *trv) {
+void Trv::processNetMessage(const char *json) {
   cJSON *root = cJSON_Parse(json);
   if (!root) {
     ESP_LOGW(TAG, "JSON parse failed: %s", json);
@@ -215,21 +61,21 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
          mode = (esp_zb_zcl_thermostat_system_mode_t)(mode + 1)) {
       if (!strcasecmp(systemModes[mode], system_mode->valuestring)) {
         ESP_LOGI(TAG, "system_mode %s (%d)", system_mode->valuestring, mode);
-        trv->setSystemMode(mode);
+        setSystemMode(mode);
       }
     }
   }
 
   if (cJSON_IsNumber(current_heating_setpoint)) {
-    trv->setHeatingSetpoint((float)current_heating_setpoint->valuedouble);
+    setHeatingSetpoint((float)current_heating_setpoint->valuedouble);
   }
 
   if (cJSON_IsNumber(local_temperature_calibration)) {
-    trv->setTempCalibration((float)local_temperature_calibration->valuedouble);
+    setTempCalibration((float)local_temperature_calibration->valuedouble);
   }
 
   if (cJSON_IsNumber(sleep_time)) {
-    trv->setSleepTime(sleep_time->valueint);
+    setSleepTime(sleep_time->valueint);
   }
 
   if (cJSON_IsNumber(resolution)) {
@@ -239,14 +85,14 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
     else if (resolution->valuedouble >= 0.125) res = 2;
     else res = 3;
     if (res >= 0 && res <= 3)
-      trv->setTempResolution(res);
+      setTempResolution(res);
   }
 
   auto shunt_value = cJSON_IsNumber(shunt_milliohms) ? shunt_milliohms->valueint : 0;
   //auto motor_value = cJSON_IsNumber(motor_dc_milliohms) ? motor_dc_milliohms->valueint : 0;
   auto reversed_value = cJSON_IsBool(motor_reversed) ? cJSON_IsTrue(motor_reversed) : cJSON_IsFalse(motor_reversed) ? 0 : -1;
   if (shunt_value || reversed_value != -1) {
-    trv->setMotorParameters(shunt_value, reversed_value);
+    setMotorParameters(shunt_value, reversed_value);
   }
 
   cJSON *ota = cJSON_GetObjectItem(root, "ota");
@@ -257,16 +103,14 @@ void NetMsg::processNetMessage(const char *json, Trv *trv) {
     if (cJSON_IsString(url) && (url->valuestring != NULL)
       && cJSON_IsString(ssid) && (ssid->valuestring != NULL)
       && cJSON_IsString(pwd) && (pwd->valuestring != NULL)) {
-      strncpy(otaUrl, url->valuestring, sizeof(otaUrl) - 1);
-      strncpy(otaSsid, ssid->valuestring, sizeof(otaSsid) - 1);
-      strncpy(otaPwd, pwd->valuestring, sizeof(otaPwd) - 1);
+        ESP_LOGI(TAG, "OTA URL: %s, Wifi %s", url->valuestring, ssid->valuestring);
+        doUpdate(url->valuestring, ssid->valuestring, pwd->valuestring) ;
     }
-    ESP_LOGI(TAG, "OTA URL: %s, Wifi %s", otaUrl, otaSsid);
   }
   // Free the root object
   cJSON_Delete(root);
 
   if (doUnpair) {
-    this->unpair();
+    // unpair();
   }
 }

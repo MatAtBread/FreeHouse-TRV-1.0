@@ -6,6 +6,7 @@
 #include "trv-state.h"
 #include "mcu_temp.h"
 #include "pins.h"
+#include "helpers.h"
 
 #define STATE_VERSION 7L
 
@@ -273,3 +274,4 @@ void Trv::checkAutoState() {
     }
   }
 }
+

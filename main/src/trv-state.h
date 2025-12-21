@@ -67,6 +67,8 @@ protected:
   MotorController *motor;
   BatteryMonitor *battery;
   TrvFS *fs;
+  void doUpdate(const char *otaUrl, const char *otaSsid, const char *otaPwd);
+  void doUnpair();
 
 public:
   Trv();
@@ -84,10 +86,12 @@ public:
   void setNetMode(net_mode_t mode, trv_mqtt_t *mqtt = NULL);
   void setSleepTime(int seconds);
   void setMotorParameters(int shunt_milliohms, int reversed = -1);
+  void processNetMessage(const char *json);
 
   static const char* deviceName();
   static uint32_t stateVersion();
   static std::string asJson(const trv_state_t& state, signed int rssi = 0);
+  static const char* writeable[];
 };
 
 #endif
