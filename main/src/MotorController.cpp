@@ -6,6 +6,7 @@
 #define maxMotorTime      10000
 #define samplePeriod      40
 #define battSamplePeriod  200
+#define stallFactor       150
 
 /* In testing:
   typical Vshunt at full stall in 0.23v (batt=4110mv, R=0.66ohms), making I=0.338mA and Rmotor=12.16-Rshunt, or 11.48ohms
@@ -75,6 +76,7 @@ static void charChart(int b, char c) {
     bar[b] = c;
 }
 
+static int avgAvg = 0;
 // The task depends on the members target & getDirection(), which is why we start it when any of them change
 void MotorController::task() {
   // Get a stable battery level
@@ -99,13 +101,14 @@ void MotorController::task() {
   const char *state = "start";
 
   int batt = noloadBatt;
-  int totalShunt = 0;
-  int count = 0;
   ESP_LOGI(TAG, "MotorController %s: noloadBatt %f, target %d, current %d, timeout %d",
       state,
       noloadBatt / 1000.0,
       target, current,
       maxMotorTime);
+
+  int totalShunt = 0;
+  int count = 0;
 
   while (getDirection() || target != current) {
     delay(samplePeriod);
@@ -136,7 +139,7 @@ void MotorController::task() {
         target = current;
         setDirection(0);
         return;
-      } else if (runTime >= minMotorTime && (shuntMilliVolts * 100) > (150 * avgShunt)) {
+      } else if (runTime >= minMotorTime && (shuntMilliVolts * 100) > (stallFactor * (avgAvg ? avgAvg : avgShunt))) {
         // Motor has stalled
         state = "stalled";
         current = target;
@@ -148,6 +151,9 @@ void MotorController::task() {
         delay(200);
         setDirection(0);
         startTime = 0;
+        if (avgShunt > 0) {
+          avgAvg = avgAvg ? ((avgAvg * 3) + avgShunt) / 4 : avgShunt;
+        }
       } else if (runTime > maxMotorTime) {
         // Motor has timed-out
         if (getDirection() == 1 && target == 100) {
@@ -168,6 +174,7 @@ void MotorController::task() {
     // Longging only
     memset(bar,'-',sizeof(bar) - 1);
 
+    charChart(avgAvg / 2, '#');
     charChart(shuntMilliVolts / 2, '*');
     charChart(avgShunt / 2, '|');
 
@@ -188,4 +195,6 @@ void MotorController::task() {
       runTime, maxMotorTime,
       strcmp(state,"running") ? "" : "\x1b[1A\r") ;
   }
+
+  ESP_LOGI(TAG,"MotorController: %s avgAvg count %d", state, avgAvg, count);
 }
