@@ -7,8 +7,8 @@
 #define stallFactor       150
 #define minMotorTime      400
 #else
-#define maxMotorTime      30000
-#define stallFactor       200
+#define maxMotorTime      24000
+#define stallFactor       180
 #define minMotorTime      1000
 #endif
 
