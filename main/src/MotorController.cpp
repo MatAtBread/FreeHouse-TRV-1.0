@@ -196,5 +196,5 @@ void MotorController::task() {
       strcmp(state,"running") ? "" : "\x1b[1A\r") ;
   }
 
-  ESP_LOGI(TAG,"MotorController: %s avgAvg count %d", state, avgAvg, count);
+  ESP_LOGI(TAG,"MotorController: %s avgAvg %d count %d, batt %d -> %d", state, avgAvg, count, noloadBatt, batt);
 }
