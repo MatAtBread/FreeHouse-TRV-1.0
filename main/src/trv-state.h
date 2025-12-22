@@ -3,13 +3,19 @@
 
 #include <string>
 
+#include "trv.h"
+#ifdef MODEL_L1
+#define FREEHOUSE_MODEL "TRV4"
+#else
+#define FREEHOUSE_MODEL "TRV1"
+#endif
+
 #include "BatteryMonitor.h"
 #include "DallasOneWire/DallasOneWire.h"
 #include "MotorController.h"
 #include "fs.h"
 #include "../common/encryption/encryption.h"
 
-#define FREEHOUSE_MODEL "TRV1"
 
 typedef enum {
   ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF = 0x00,
@@ -86,6 +92,7 @@ public:
   void setNetMode(net_mode_t mode, trv_mqtt_t *mqtt = NULL);
   void setSleepTime(int seconds);
   void setMotorParameters(int shunt_milliohms, int reversed = -1);
+  void calibrate();
   void processNetMessage(const char *json);
 
   static const char* deviceName();

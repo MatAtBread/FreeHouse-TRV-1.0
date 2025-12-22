@@ -148,6 +148,11 @@ extern "C" void app_main() {
       ESP_LOGI(TAG, "Touch button pressed / device name '%s'", trv->deviceName());
       CaptivePortal portal(trv, trv->deviceName());
       switch (portal.exitStatus) {
+        case exit_status_t::CALIBRATE: {
+            trv->calibrate();
+            dreamSecs = 1;
+          }
+          break;
         case exit_status_t::TEST_MODE: {
             auto state = trv->getState(true);
             delete trv;
@@ -189,7 +194,7 @@ extern "C" void app_main() {
           break;
         case exit_status_t::POWER_OFF:
           ESP_LOGI(TAG, "Power off requested");
-          dreamSecs = 24 * 60 * 60;
+          dreamSecs = 0x7FFFFFFF; // 30 * 24 * 60 * 60;
           break;
         case exit_status_t::CLOSED:
         case exit_status_t::NONE:

@@ -2,17 +2,25 @@
 #include "../common/gpio/gpio.hpp"
 #include "MotorController.h"
 
-#define minMotorTime      400
+#ifdef MODEL_L1
 #define maxMotorTime      10000
+#define stallFactor       150
+#define minMotorTime      400
+#else
+#define maxMotorTime      30000
+#define stallFactor       200
+#define minMotorTime      1000
+#endif
+
 #define samplePeriod      40
 #define battSamplePeriod  200
-#define stallFactor       150
 
 /* In testing:
   typical Vshunt at full stall in 0.23v (batt=4110mv, R=0.66ohms), making I=0.338mA and Rmotor=12.16-Rshunt, or 11.48ohms
   In-rush Vshunt on *reversal* is 0.38v, from stationary is 0.21v
+*/
 
-  */
+static RTC_DATA_ATTR int avgAvg[3];
 
 MotorController::MotorController(gpio_num_t pinDir, gpio_num_t pinSleep, BatteryMonitor* battery, uint8_t &current, motor_params_t &params) :
   pinDir(pinDir), pinSleep(pinSleep), battery(battery), current(current), params(params) {
@@ -30,7 +38,6 @@ int MotorController::getDirection() {
   if (GPIO::digitalRead(pinSleep) == false) return 0;
   return GPIO::digitalRead(pinDir) != params.reversed ? 1 : -1;
 }
-
 
 void MotorController::setDirection(int dir) {
   // We don't need to enable the task here, as this protected method can only be called from within the task()
@@ -76,7 +83,39 @@ static void charChart(int b, char c) {
     bar[b] = c;
 }
 
-static int avgAvg[] = {0,0,0};
+void MotorController::resetValve() {
+  memset(avgAvg, 0, sizeof avgAvg);
+}
+
+void MotorController::calibrate() {
+  ESP_LOGI(TAG,"Calibrate - stop");
+  setValvePosition(-1); // Just stops the motor where it is
+  wait();
+
+  delay(250);
+  resetValve();
+
+  current = 50;
+  ESP_LOGI(TAG,"Calibrate - clear state, open");
+  setValvePosition(100);
+  wait();
+  delay(2500);
+  resetValve();
+
+  current = 50;
+  ESP_LOGI(TAG,"Calibrate - close");
+  setValvePosition(0);
+  wait();
+
+  delay(2500);
+
+  ESP_LOGI(TAG,"Calibrate - open");
+  setValvePosition(100);
+  wait();
+
+  ESP_LOGI(TAG,"Calibrate - done ^%d v%d", avgAvg[0], avgAvg[2]);
+}
+
 // The task depends on the members target & getDirection(), which is why we start it when any of them change
 void MotorController::task() {
   // Get a stable battery level
@@ -91,7 +130,7 @@ void MotorController::task() {
   }
 
   if (noloadBatt < 1000) {
-    ESP_LOGW(TAG, "MotorController::task noloadBatt %f too low, stop", noloadBatt / 1000.0);
+    ESP_LOGW(TAG, "MotorController: noloadBatt %f too low, stop", noloadBatt / 1000.0);
     target = 50;
     current = 50;
     return;
@@ -101,11 +140,13 @@ void MotorController::task() {
   const char *state = "start";
 
   int batt = noloadBatt;
-  ESP_LOGI(TAG, "MotorController %s: noloadBatt %f, target %d, current %d, timeout %d",
+  ESP_LOGI(TAG, "MotorController %s: noloadBatt %f, target %d, current %d, timeout %d, ^%d, ^%d",
       state,
       noloadBatt / 1000.0,
       target, current,
-      maxMotorTime);
+      maxMotorTime,
+      avgAvg[0], avgAvg[2]
+    );
 
   int totalShunt = 0;
   int count = 0;
@@ -175,8 +216,8 @@ void MotorController::task() {
     // Longging only
     memset(bar,'-',sizeof(bar) - 1);
 
-    charChart(avgAvg[0] / 2, '^');
-    charChart(avgAvg[2] / 2, 'v');
+    charChart(avgAvg[thisDir] / 2, '#');
+    charChart(avgAvg[2 - thisDir] / 2, ' ');
     charChart(shuntMilliVolts / 2, '+');
     charChart(avgShunt / 2, '|');
 

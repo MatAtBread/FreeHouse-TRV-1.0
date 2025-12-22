@@ -18,8 +18,6 @@ WithTask::WithTask() {
 
 WithTask::~WithTask() {
   wait();
-  if (running) vEventGroupDelete(running);
-  running = NULL;
 }
 
 WithTaskState WithTask::waitForAllTasks(TickType_t delay) {

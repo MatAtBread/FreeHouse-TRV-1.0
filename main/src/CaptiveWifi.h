@@ -9,6 +9,7 @@ typedef enum {
   TEST_MODE,
   TIME_OUT,
   CLOSED,
+  CALIBRATE,
   POWER_OFF
 } exit_status_t;
 
@@ -16,6 +17,7 @@ class CaptivePortal : public HttpGetHandler {
  protected:
   Trv* trv;
   uint32_t timeout;
+  bool calibrating = false;
   void exitPortal(exit_status_t status);
 
  public:

@@ -2,8 +2,8 @@
 #define WithTask_h
 
 #define StartTask(Cl) (running \
-  ? (_log("Task "#Cl" running"), running) \
-  : (running = (_log("Task "#Cl" starting"), xTaskCreate((TaskFunction_t)&taskWrapper<Cl>, #Cl, 8192, this, 1, nullptr) == pdPASS \
+  ? (_log("WithTask "#Cl" running"), running) \
+  : (running = (_log("WithTask "#Cl" starting"), xTaskCreate((TaskFunction_t)&taskWrapper<Cl>, #Cl, 8192, this, 1, nullptr) == pdPASS \
     ? ((numRunning+=1),xEventGroupClearBits(anyTasks, WITHTASK_FINISHED),xEventGroupCreate()) \
     : NULL)))
 
@@ -39,7 +39,7 @@ public:
   virtual ~WithTask();
 
   WithTaskState wait(TickType_t delay = portMAX_DELAY) {
-    return running ? xEventGroupWaitBits(running, WITHTASK_FINISHED, pdFALSE, pdTRUE, delay) & WITHTASK_FINISHED ? FINISHED : TIMEOUT : NOT_RUNNING;
+    return running ? xEventGroupWaitBits(running, WITHTASK_FINISHED, pdFALSE, pdTRUE, delay) & WITHTASK_FINISHED ? ((running = NULL),FINISHED) : TIMEOUT : NOT_RUNNING;
   }
 
   // Pure virtual function to be implemented by derived classes

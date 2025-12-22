@@ -167,6 +167,7 @@ void Trv::resetValve() {
 
   // Once the valve is open, we can set the target position depending on the state
   ESP_LOGI(TAG, "Reset: valve opened, set system mode");
+  motor->resetValve();
   globalState.sensors.position = 50;  // We don't know what the valve position is after a hard reset, so we leave the state indeterminate so the first call to setValvePosition does something
   setSystemMode(globalState.config.system_mode);
 }
@@ -281,3 +282,9 @@ void Trv::checkAutoState() {
   }
 }
 
+void Trv::calibrate() {
+  const auto mode = globalState.config.system_mode;
+  globalState.config.system_mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP;
+  motor->calibrate();
+  setSystemMode(mode);
+}
