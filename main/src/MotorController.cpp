@@ -76,7 +76,7 @@ static void charChart(int b, char c) {
     bar[b] = c;
 }
 
-static int avgAvg = 0;
+static int avgAvg[] = {0,0,0};
 // The task depends on the members target & getDirection(), which is why we start it when any of them change
 void MotorController::task() {
   // Get a stable battery level
@@ -130,7 +130,8 @@ void MotorController::task() {
     const auto runTime = startTime ? now - startTime : 0;
     if (startTime)
       state = "running";
-    if (getDirection() == 0) {
+    const auto thisDir = getDirection()+1;
+    if (thisDir == 1) {
       noloadBatt = (noloadBatt * 7 + batt) / 8;
       state = "idle";
     } else {
@@ -139,7 +140,7 @@ void MotorController::task() {
         target = current;
         setDirection(0);
         return;
-      } else if (runTime >= minMotorTime && (shuntMilliVolts * 100) > (stallFactor * (avgAvg ? avgAvg : avgShunt))) {
+      } else if (runTime >= minMotorTime && (shuntMilliVolts * 100) > (stallFactor * (avgAvg[thisDir] ? avgAvg[thisDir] : avgShunt))) {
         // Motor has stalled
         state = "stalled";
         current = target;
@@ -152,7 +153,7 @@ void MotorController::task() {
         setDirection(0);
         startTime = 0;
         if (avgShunt > 0) {
-          avgAvg = avgAvg ? ((avgAvg * 3) + avgShunt) / 4 : avgShunt;
+          avgAvg[thisDir] = avgAvg[thisDir] ? ((avgAvg[thisDir] * 3) + avgShunt) / 4 : avgShunt;
         }
       } else if (runTime > maxMotorTime) {
         // Motor has timed-out
@@ -174,8 +175,9 @@ void MotorController::task() {
     // Longging only
     memset(bar,'-',sizeof(bar) - 1);
 
-    charChart(avgAvg / 2, '#');
-    charChart(shuntMilliVolts / 2, '*');
+    charChart(avgAvg[0] / 2, '^');
+    charChart(avgAvg[2] / 2, 'v');
+    charChart(shuntMilliVolts / 2, '+');
     charChart(avgShunt / 2, '|');
 
     bar[sizeof(bar) - 1] = 0;
@@ -196,5 +198,5 @@ void MotorController::task() {
       strcmp(state,"running") ? "" : "\x1b[1A\r") ;
   }
 
-  ESP_LOGI(TAG,"MotorController: %s avgAvg %d count %d, batt %d -> %d", state, avgAvg, count, noloadBatt, batt);
+  ESP_LOGI(TAG,"MotorController: %s avgAvg ^%d v%d count %d, batt %d -> %d", state, avgAvg[0], avgAvg[2], count, noloadBatt, batt);
 }
