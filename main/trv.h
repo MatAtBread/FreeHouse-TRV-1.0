@@ -1,4 +1,4 @@
-#define MODEL_L1 // Set for Lockshield hardware, unset for TRV hardware
+#undef MODEL_L1 // Set for Lockshield hardware, unset for TRV hardware
 
 #ifdef MODEL_L1
 #define FREEHOUSE_MODEL "TRV4"
