@@ -4,11 +4,6 @@
 #include <string>
 
 #include "trv.h"
-#ifdef MODEL_L1
-#define FREEHOUSE_MODEL "TRV4"
-#else
-#define FREEHOUSE_MODEL "TRV1"
-#endif
 
 #include "BatteryMonitor.h"
 #include "DallasOneWire/DallasOneWire.h"

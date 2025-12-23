@@ -186,9 +186,11 @@ void MotorController::task() {
         setDirection(0);
         break;
       } else {
-        const auto stalled = calibrating
-          ? runTime >= (maxMotorTime * 9) / 10
-          : shuntMilliVolts > (stallFactor * (avgAvg[thisDir] ? avgAvg[thisDir] : avgShunt)) / 100;
+        const auto stalled =
+#ifndef MODEL_L1 // TRV-actuator relies on TIME while calibrating
+        calibrating ? runTime >= (maxMotorTime * 9) / 10 :
+#endif
+          shuntMilliVolts > (stallFactor * (avgAvg[thisDir] ? avgAvg[thisDir] : avgShunt)) / 100;
         if (runTime >= minMotorTime && stalled) {
           // Motor has stalled
           state = "stalled";
