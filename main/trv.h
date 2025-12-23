@@ -1,4 +1,4 @@
-#define MODEL_L1 // Set for Lockshield hardware, unset for TRV hardware
+#undef MODEL_L1 // Set for Lockshield hardware, unset for TRV hardware
 
 #ifndef TRV_H
 #define TRV_H

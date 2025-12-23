@@ -4,14 +4,13 @@
 
 #ifdef MODEL_L1
 #define maxMotorTime      10000
-#define stallFactor       150
 #define minMotorTime      400
 #else
-#define maxMotorTime      24000
-#define stallFactor       180
+#define maxMotorTime      30000
 #define minMotorTime      1000
 #endif
 
+#define stallFactor       150
 #define samplePeriod      40
 #define battSamplePeriod  200
 
@@ -24,6 +23,7 @@ static RTC_DATA_ATTR int avgAvg[3];
 
 MotorController::MotorController(gpio_num_t pinDir, gpio_num_t pinSleep, BatteryMonitor* battery, uint8_t &current, motor_params_t &params) :
   pinDir(pinDir), pinSleep(pinSleep), battery(battery), current(current), params(params) {
+  calibrating = false;
   target = current;
   GPIO::pinMode(pinSleep, OUTPUT);
   GPIO::pinMode(pinDir, OUTPUT);
@@ -96,13 +96,16 @@ void MotorController::calibrate() {
   resetValve();
 
   current = 50;
+  calibrating = true;
   ESP_LOGI(TAG,"Calibrate - clear state, open");
   setValvePosition(100);
   wait();
   delay(2500);
+  ESP_LOGI(TAG,"Calibrate - first pass avgAvg %d %d", avgAvg[0], avgAvg[2]);
   resetValve();
 
   current = 50;
+
   ESP_LOGI(TAG,"Calibrate - close");
   setValvePosition(0);
   wait();
@@ -113,6 +116,7 @@ void MotorController::calibrate() {
   setValvePosition(100);
   wait();
 
+  calibrating = false;
   ESP_LOGI(TAG,"Calibrate - done ^%d v%d", avgAvg[0], avgAvg[2]);
 }
 
@@ -140,7 +144,7 @@ void MotorController::task() {
   const char *state = "start";
 
   int batt = noloadBatt;
-  ESP_LOGI(TAG, "MotorController %s: noloadBatt %f, target %d, current %d, timeout %d, ^%d, ^%d",
+  ESP_LOGI(TAG, "MotorController %s: noloadBatt %f, target %d, current %d, timeout %d, ^%d, v%d",
       state,
       noloadBatt / 1000.0,
       target, current,
@@ -180,35 +184,40 @@ void MotorController::task() {
         state = "stuck";
         target = current;
         setDirection(0);
-        return;
-      } else if (runTime >= minMotorTime && (shuntMilliVolts * 100) > (stallFactor * (avgAvg[thisDir] ? avgAvg[thisDir] : avgShunt))) {
-        // Motor has stalled
-        state = "stalled";
-        current = target;
-        // Back-off
-        const auto reverse = -getDirection();
-        setDirection(0);
-        delay(100);
-        setDirection(reverse);
-        delay(200);
-        setDirection(0);
-        startTime = 0;
-        if (avgShunt > 0) {
-          avgAvg[thisDir] = avgAvg[thisDir] ? ((avgAvg[thisDir] * 3) + avgShunt) / 4 : avgShunt;
-        }
-      } else if (runTime > maxMotorTime) {
-        // Motor has timed-out
-        if (getDirection() == 1 && target == 100) {
-          current = target;
-          state = "opened";
-        } else {
-          state = "timed-out";
-          target = current;
-        }
-        startTime = 0;
-        setDirection(0);
+        break;
       } else {
-        current = 50 + getDirection();
+        const auto stalled = calibrating
+          ? runTime >= (maxMotorTime * 9) / 10
+          : shuntMilliVolts > (stallFactor * (avgAvg[thisDir] ? avgAvg[thisDir] : avgShunt)) / 100;
+        if (runTime >= minMotorTime && stalled) {
+          // Motor has stalled
+          state = "stalled";
+          current = target;
+          // Back-off
+          const auto reverse = -getDirection();
+          setDirection(0);
+          delay(100);
+          setDirection(reverse);
+          delay(200);
+          setDirection(0);
+          startTime = 0;
+          if (avgShunt > 0) {
+            avgAvg[thisDir] = avgAvg[thisDir] ? ((avgAvg[thisDir] * 3) + avgShunt) / 4 : avgShunt;
+          }
+        } else if (runTime > maxMotorTime) {
+          // Motor has timed-out
+          if (getDirection() == 1 && target == 100) {
+            current = target;
+            state = "opened";
+          } else {
+            state = "timed-out";
+            target = current;
+          }
+          startTime = 0;
+          setDirection(0);
+        } else {
+          current = 50 + getDirection();
+        }
       }
     }
 

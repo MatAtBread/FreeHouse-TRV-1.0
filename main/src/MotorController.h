@@ -18,6 +18,7 @@ class MotorController: public WithTask {
   volatile uint8_t target;
   volatile uint8_t& current;
   motor_params_t& params;
+  bool calibrating;
 
   void setDirection(int dir);
 
