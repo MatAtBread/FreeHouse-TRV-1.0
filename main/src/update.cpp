@@ -9,7 +9,7 @@
 #include "esp_ota_ops.h"
 #include "esp_http_client.h"
 #endif
-#include "../../../now-hub/main/common/gpio/gpio.hpp"
+#include "../common/gpio/gpio.hpp"
 
 static int64_t content_len = -1;
 static int64_t content_read = 0;
