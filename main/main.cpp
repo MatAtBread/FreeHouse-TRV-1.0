@@ -138,11 +138,6 @@ extern "C" void app_main() {
     ESP_LOGI(TAG, "Battery exhausted");
     dreamSecs = 60 * 60;
   } else {
-    if (resetCause != ESP_RST_DEEPSLEEP) {
-      resetCause = ESP_RST_DEEPSLEEP;  // To suppress further reset in no-sleep mode
-      trv->resetValve();
-    }
-
     ESP_LOGI(TAG, "Check touch button/device name");
     if (!trv->deviceName()[0] || touchButtonPressed()) {
       ESP_LOGI(TAG, "Touch button pressed / device name '%s'", trv->deviceName());
@@ -204,6 +199,11 @@ extern "C" void app_main() {
           break;
       }
     } else {
+      if (resetCause != ESP_RST_DEEPSLEEP) {
+        resetCause = ESP_RST_DEEPSLEEP;  // To suppress further reset in no-sleep mode
+        trv->resetValve();
+      }
+
       checkForMessages(trv);
       dreamSecs = trv->getState(true).config.sleep_time;
     }
