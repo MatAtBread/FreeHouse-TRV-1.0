@@ -4,4 +4,4 @@ managed_components/
 .vscode/
 .cache/
 .devcontainer/
-
+.DS_Store
