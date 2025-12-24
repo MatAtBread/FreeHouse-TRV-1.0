@@ -1,10 +1,9 @@
 #include "esp_now.h"
 
-#include "../src/NetMsg.h"
 #include "../trv.h"
 #include "../src/trv-state.h"
 
-class EspNet: public NetMsg {
+class EspNet {
     protected:
         Trv* trv;
         uint8_t *joinPhrase = NULL;
@@ -16,7 +15,7 @@ class EspNet: public NetMsg {
         ~EspNet();
         void sendStateToHub(const trv_state_t &);
         void checkMessages();
-        void unpair();
+        static void unpair();
 
         // Internal referenced from statics
         void data_receive_callback(const esp_now_recv_info_t * esp_now_info, const uint8_t *data, int data_len);

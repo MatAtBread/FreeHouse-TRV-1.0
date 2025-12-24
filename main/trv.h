@@ -1,3 +1,11 @@
+#undef MODEL_L1 // Set for Lockshield hardware, unset for TRV hardware
+
+#ifdef MODEL_L1
+#define FREEHOUSE_MODEL "TRV4"
+#else
+#define FREEHOUSE_MODEL "TRV1"
+#endif
+
 #ifndef TRV_H
 #define TRV_H
 
@@ -20,7 +28,7 @@ extern "C" {
 #endif
 
 extern const char *TAG;
-extern const char *versionDetail;
+extern char versionDetail[];
 
 #ifdef __cplusplus
 }

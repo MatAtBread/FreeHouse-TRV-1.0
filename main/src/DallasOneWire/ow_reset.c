@@ -5,6 +5,7 @@
 **/
 
 #include "esp_log.h"
+#include "helpers.h"
 #include "onewire.h"
 #include "onewire_symbols.h"
 
@@ -39,10 +40,10 @@ static bool _parse_reset_symbols (size_t num_symbols, rmt_symbol_word_t *symbols
 }
 
 
-bool ow_reset (OW *ow) {
+uint32_t ow_reset (OW *ow) {
     rmt_rx_done_event_data_t evt;
-    ESP_ERROR_CHECK_WITHOUT_ABORT(rmt_receive (ow->rx_channel, ow->rx_buffer, ow->rx_buflen, &rx_config));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(rmt_transmit (ow->tx_channel, ow->copy_encoder, &symbol_reset, sizeof (rmt_symbol_word_t), &tx_config));
+    ERR_BACKTRACE(rmt_receive (ow->rx_channel, ow->rx_buffer, ow->rx_buflen, &rx_config));
+    ERR_BACKTRACE(rmt_transmit (ow->tx_channel, ow->copy_encoder, &symbol_reset, sizeof (rmt_symbol_word_t), &tx_config));
     if (xQueueReceive (ow->rx_queue, &evt, pdMS_TO_TICKS(OW_RMT_TIMEOUT_MS)) != pdTRUE) {
         ESP_LOGE (TAG, "%s: rx timeout", __func__);
         return false;
@@ -51,5 +52,5 @@ bool ow_reset (OW *ow) {
     if (rmt_tx_wait_all_done (ow->tx_channel, OW_RMT_TIMEOUT_MS) != ESP_OK) {
         ESP_LOGE (TAG, "%s: tx timeout", __func__);
     }
-    return is_present;
+    return is_present ? ESP_OK : ESP_ERR_NOT_FOUND;
 }

@@ -3,13 +3,14 @@
 
 #include <string>
 
+#include "trv.h"
+
 #include "BatteryMonitor.h"
 #include "DallasOneWire/DallasOneWire.h"
 #include "MotorController.h"
 #include "fs.h"
 #include "../common/encryption/encryption.h"
 
-#define FREEHOUSE_MODEL "TRV1"
 
 typedef enum {
   ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF = 0x00,
@@ -56,6 +57,7 @@ typedef struct trv_state_s
     ENCRYPTION_KEY passKey;
     int sleep_time; // in seconds, 1 to 120
     uint8_t resolution; // 0=9-bit, 1=10-bit, 2=11-bit, 3=12-bit
+    motor_params_t motor;
   } config;
 } trv_state_t;
 
@@ -66,6 +68,13 @@ protected:
   MotorController *motor;
   BatteryMonitor *battery;
   TrvFS *fs;
+
+  std::string otaUrl;
+  std::string otaSsid;
+  std::string otaPwd;
+  void requestUpdate(const char *otaUrl, const char *otaSsid, const char *otaPwd);
+  void doUnpair();
+  void doUpdate();
 
 public:
   Trv();
@@ -82,9 +91,14 @@ public:
   bool is_charging();
   void setNetMode(net_mode_t mode, trv_mqtt_t *mqtt = NULL);
   void setSleepTime(int seconds);
+  void setMotorParameters(int shunt_milliohms, int reversed = -1);
+  void calibrate();
+  void processNetMessage(const char *json);
+
   static const char* deviceName();
   static uint32_t stateVersion();
   static std::string asJson(const trv_state_t& state, signed int rssi = 0);
+  static const char* writeable[];
 };
 
 #endif

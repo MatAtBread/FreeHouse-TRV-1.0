@@ -2,3 +2,6 @@ build/
 sdkconfig.old
 managed_components/
 .vscode/
+.cache/
+.devcontainer/
+.DS_Store

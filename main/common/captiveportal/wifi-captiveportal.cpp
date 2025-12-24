@@ -15,6 +15,9 @@
 
 #include "nvs_flash.h"
 #include "esp_wifi.h"
+
+#include "helpers.h"
+
 #include "../../main/src/board.h"
 #include "esp_netif.h"
 #include "lwip/inet.h"
@@ -95,9 +98,9 @@ static void dhcp_set_captiveportal_url(void) {
     esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
 
     // set the DHCP option 114
-    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_stop(netif));
+    ERR_BACKTRACE(esp_netif_dhcps_stop(netif));
     ESP_ERROR_CHECK(esp_netif_dhcps_option(netif, ESP_NETIF_OP_SET, ESP_NETIF_CAPTIVEPORTAL_URI, captiveportal_uri, strlen(captiveportal_uri)));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_start(netif));
+    ERR_BACKTRACE(esp_netif_dhcps_start(netif));
 }
 #endif // CONFIG_ESP_ENABLE_DHCP_CAPTIVEPORTAL
 
@@ -116,6 +119,9 @@ esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
 }
 
 static HttpGetHandler *handler;
+static httpd_handle_t server = NULL;
+static dns_server_handle_t dns_handle = NULL;
+
 static esp_err_t getHandler(httpd_req_t *req) {
     return handler->getHandler(req);
 }
@@ -127,7 +133,6 @@ void start_web_server(HttpGetHandler *_handler) {
   }
   handler = _handler;
 
-  httpd_handle_t server = NULL;
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.max_open_sockets = 13;
   config.lru_purge_enable = true;
@@ -182,5 +187,39 @@ void start_captive_portal(HttpGetHandler *_handler, const char *ssid) {
 
   // Start the DNS server that will redirect all queries to the softAP IP
   dns_server_config_t dns_config = DNS_SERVER_CONFIG_SINGLE("*" /* all A queries */, "WIFI_AP_DEF" /* softAP netif ID */);
-  start_dns_server(&dns_config);
+  dns_handle = start_dns_server(&dns_config);
+}
+
+void stop_web_server(void) {
+    if (server) {
+        ESP_LOGI(TAG, "Stopping web server");
+        httpd_stop(server);
+        server = NULL;
+        handler = NULL;
+    } else {
+        ESP_LOGI(TAG, "Web server not running");
+    }
+}
+
+void stop_captive_portal(void) {
+    ESP_LOGI(TAG, "Stopping captive portal");
+
+    // Stop DNS server
+    stop_dns_server(dns_handle);
+
+    // Stop HTTP server
+    stop_web_server();
+
+    // Deinit Wi-Fi SoftAP
+    ESP_ERROR_CHECK(esp_wifi_stop());
+    ESP_ERROR_CHECK(esp_wifi_deinit());
+
+    // Destroy default Wi-Fi AP netif
+    esp_netif_t *ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+    if (ap_netif) {
+        esp_netif_destroy(ap_netif);
+        ESP_LOGI(TAG, "Destroyed Wi-Fi AP netif");
+    }
+
+    ESP_LOGI(TAG, "Captive portal stopped and resources released");
 }

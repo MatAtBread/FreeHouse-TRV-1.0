@@ -5,14 +5,11 @@
 
 #include "trv-state.h"
 #include "mcu_temp.h"
+#include "pins.h"
+#include "helpers.h"
+#include <net/esp-now.hpp>
 
-#define MOTOR 17     // D7
-#define NSLEEP 19    // D8
-#define CHARGING 20  // D9
-#define DTEMP 18     // D10
-#define BATTERY 0    // A0
-
-#define STATE_VERSION 5L
+#define STATE_VERSION 7L
 
 extern const char *systemModes[];
 
@@ -40,13 +37,18 @@ static RTC_DATA_ATTR trv_state_t globalState = {
     },
     .passKey = {0}, // Added in STATE_VERSION 3
     .sleep_time = 20, // Added in STATE_VERSION 4
-    .resolution = 1 // // Added in STATE_VERSION 5
+    .resolution = 1, // // Added in STATE_VERSION 5
+    .motor = {
+      .shunt_milliohms = 680, // Added in STATE_VERSION 6
+      // .dc_milliohms = 15000, // Added in STATE_VERSION 6 removed in 7+
+      .reversed = false, // Added in STATE_VERSION 7
+    }
   }
 };
 
 const char *Trv::deviceName() { return globalState.config.mqttConfig.device_name; }
 uint32_t Trv::stateVersion() { return globalState.version; }
-const int i = sizeof(globalState.config.passKey);
+
 #define UPDATE_STATE(number, default_expr) \
   if (state.version == number) { \
     state.version +=1; \
@@ -66,6 +68,8 @@ Trv::Trv() {
     UPDATE_STATE(2, memset(state.config.passKey, 0, sizeof (state.config.passKey)));
     UPDATE_STATE(3, state.config.sleep_time = 20); // Default sleep time
     UPDATE_STATE(4, state.config.resolution = 3); // Default resolution 10-bit
+    UPDATE_STATE(5, state.config.motor.shunt_milliohms = 680; /*state.config.motor.dc_milliohms = 15000*/);
+    UPDATE_STATE(6, state.config.motor.reversed = false);
     r = sizeof(state);
   }
 
@@ -79,6 +83,7 @@ Trv::Trv() {
     globalState.config.current_heating_setpoint = 21;
     globalState.config.sleep_time = 20;
     globalState.config.resolution = 3;
+    globalState.config.motor = { .shunt_milliohms = 680, .reversed = false };
   } else {
     globalState.config = state.config;
   }
@@ -86,7 +91,7 @@ Trv::Trv() {
   // Get the sensor values
   tempSensor = new DallasOneWire(DTEMP, globalState.sensors.sensor_temperature);
   battery = new BatteryMonitor(BATTERY, CHARGING);
-  motor = new MotorController(MOTOR, NSLEEP, battery, globalState.sensors.position);
+  motor = new MotorController(MOTOR, NSLEEP, battery, globalState.sensors.position, globalState.config.motor);
   getState(true); // Lazily update temp
   ESP_LOGI(TAG,"Initial state: '%s' mqtt://%s:%d, wifi %s >> %s",
     globalState.config.mqttConfig.device_name,
@@ -97,9 +102,13 @@ Trv::Trv() {
 }
 
 Trv::~Trv() {
+  if (this->otaUrl.length()) {
+    doUpdate();
+  }
+  delete motor;
   delete battery;
   delete tempSensor;
-  delete motor;
+  delete fs;
 }
 
 void Trv::setSleepTime(int seconds) {
@@ -133,10 +142,17 @@ std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
     "\"system_mode\":\"" << systemModes[s.config.system_mode] << "\","
     "\"sleep_time\":" << s.config.sleep_time << ","
     "\"resolution\":" << (0.5 / (float)(1 << s.config.resolution)) << ","
-    "\"unpair\":false"
+    "\"unpair\":false,"
+    "\"shunt_milliohms\":" << s.config.motor.shunt_milliohms << ","
+    //"\"motor_dc_milliohms\":" << s.config.motor.dc_milliohms << ","
+    "\"motor_reversed\":" << (s.config.motor.reversed ? "true":"false") <<
     "}";
 
   return json.str();
+}
+
+void Trv::doUnpair() {
+  EspNet::unpair();
 }
 
 void Trv::saveState() {
@@ -145,16 +161,23 @@ void Trv::saveState() {
 }
 
 void Trv::resetValve() {
-  ESP_LOGI(TAG, "Reset: open valve");
-  // When restarting after a reset or power loss (eg new battery), force open the valve
-  globalState.sensors.position = 50;  // We don't know what the valve position is after a hard reset
-  motor->setValvePosition(100);
-  ESP_LOGI(TAG, "Reset: wait until valve opened");
-  motor->wait();
-
-  // Once the valve is open, we can set the target position depending on the state
-  ESP_LOGI(TAG, "Reset: valve opened, set system mode");
+  motor->resetValve();
+  globalState.sensors.position = 50;  // We don't know what the valve position is after a hard reset, so we leave the state indeterminate so the first call to setValvePosition does something
   setSystemMode(globalState.config.system_mode);
+}
+
+void Trv::setMotorParameters(int shunt_milliohms, int reversed) {
+  ESP_LOGI(TAG, "Trv::setMotorParameters shunt %d reversed %d", shunt_milliohms, reversed);
+  if (shunt_milliohms > 0) {
+    globalState.config.motor.shunt_milliohms = shunt_milliohms;
+  }
+  // if (motor_dc_milliohms > 0) {
+  //   globalState.config.motor.dc_milliohms = motor_dc_milliohms;
+  // }
+  if (reversed != -1) {
+    globalState.config.motor.reversed = reversed ? true : false;
+  }
+  saveState();
 }
 
 const trv_state_t& Trv::getState(bool fast) {
@@ -251,4 +274,11 @@ void Trv::checkAutoState() {
       motor->setValvePosition(100);
     }
   }
+}
+
+void Trv::calibrate() {
+  const auto mode = globalState.config.system_mode;
+  globalState.config.system_mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP;
+  motor->calibrate();
+  setSystemMode(mode);
 }

@@ -3,12 +3,13 @@
 #include <string>
 #include <sstream>
 
-#include "../src/NetMsg.h"
 #include "esp_log.h"
 #include "esp_sleep.h"
 #include "esp_wifi.h"
 #include "string.h"
 #include "esp_wifi_types.h"
+
+#include "helpers.h"
 #include "../src/board.h"
 #include "../common/encryption/encryption.h"
 
@@ -28,7 +29,7 @@ typedef struct {
   esp_wifi_rxctrl_t rx;
 } pairing_info_t;
 
-static pairing_info_t pairInfo[20] = {0};
+static pairing_info_t pairInfo[20] = {{0}};
 static pairing_info_t *nextPair = NULL;
 
 
@@ -69,7 +70,7 @@ void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info, cons
 
   if (data[0] == '{') {
     // We got some data
-    processNetMessage((const char *)data, trv);
+    trv->processNetMessage((const char *)data);
   } else if (memcmp(data, "PACK", 4) == 0) {
     if (nextPair == NULL) {
       ESP_LOGI(TAG, "Pairing finished!");
@@ -136,8 +137,8 @@ EspNet::EspNet(Trv *trv) : trv(trv) {
     "\"build\":\"" << versionDetail << "\","
     "\"writeable\":[";
 
-    for (auto p = NetMsg::writeable; *p; p++) {
-      if (p != NetMsg::writeable) pairName << ",";
+    for (auto p = Trv::writeable; *p; p++) {
+      if (p != Trv::writeable) pairName << ",";
       pairName << "\"" << *p << "\"";
     }
     pairName << "]}";
@@ -265,7 +266,7 @@ void EspNet::pair_with_hub() {
       if (p != best && memcmp(p->mac, best->mac, sizeof(MACAddr))) {
         add_peer(p->mac, p->rx.channel);
         set_channel(p->rx.channel);
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_now_send(p->mac, (const uint8_t *)"NACK", 5));
+        ERR_BACKTRACE(esp_now_send(p->mac, (const uint8_t *)"NACK", 5));
         ESP_LOGI(TAG, "Nack'd hub " MACSTR " channel %d+%d, rssi %d", MAC2STR(p->mac), p->rx.channel, p->rx.second, p->rx.rssi);
       }
     }

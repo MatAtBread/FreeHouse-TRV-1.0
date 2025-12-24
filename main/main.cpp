@@ -1,12 +1,13 @@
 // the setup function runs once when you press reset or power the board
-#define TOUCH_PIN 1
 
 #include "trv.h"
+#include "pins.h"
 
 #include "esp_sleep.h"
 #include "hal/uart_types.h"
 #include "esp_netif.h"
 #include "esp_pm.h"
+#include "esp_app_desc.h"
 #include "nvs_flash.h"
 
 #include "common/gpio/gpio.hpp"
@@ -39,7 +40,6 @@ bool touchButtonPressed() {
 
 static RTC_DATA_ATTR int messgageChecks = 0;
 void checkForMessages(Trv *trv) {
-
   // Create `net` based on config
   // auto state = Trv::getLastState();
   // ESP_LOGI(TAG, "checkIncomingMessages using netMode %u", state->netMode);
@@ -60,16 +60,11 @@ void checkForMessages(Trv *trv) {
   // to avoid excessive checking and the valve moving too often, and to give the device temperature time to settle after a change (which
   // drives up the internal temperature and causes resonance)
   ESP_LOGI(TAG, "checkForMessages %d / %d", messgageChecks, checkEvery);
-  if (net->getMessageCount() == 0) {
-    if (messgageChecks >= checkEvery) {
-      trv->checkAutoState();
-      messgageChecks = 0;
-    } else {
-      messgageChecks += 1;
-    }
-  } else {
-    // We defer checking the auto state if we received messages as they will have called checkAutoState()
+  if (messgageChecks >= checkEvery) {
+    trv->checkAutoState();
     messgageChecks = 0;
+  } else {
+    messgageChecks += 1;
   }
   WithTask::waitForAllTasks();
   net->sendStateToHub(trv->getState(false));
@@ -77,7 +72,35 @@ void checkForMessages(Trv *trv) {
   delete net;
 }
 
+// void test_fn() {
+//   ESP_LOGI(TAG, "DEBUG DELAY START");
+//   for (int i=0; i<50; i++) {
+//     GPIO::digitalWrite(LED_BUILTIN, i & 1);
+//     delay(100);
+//   }
+//   ESP_LOGI(TAG, "DEBUG DELAY END");
+
+//   ESP_LOGI(TAG, "Test fn called");
+//   BatteryMonitor* battery = new BatteryMonitor(0, 20);
+//   uint8_t currentPosition = 0;
+//   MotorController* mc = new MotorController(17, 19, battery, currentPosition, 680, 15000);
+//   while (1) {
+//     mc->setDirection(1);
+//     delay(3000);
+//     mc->setDirection(-1);
+//     delay(3000);
+//     mc->setDirection(0);
+//     delay(3000);
+//     if (touchButtonPressed()) {
+//       esp_sleep_enable_ext1_wakeup(1ULL << TOUCH_PIN, ESP_EXT1_WAKEUP_ANY_HIGH);
+//       esp_sleep_enable_timer_wakeup(60 * 1000000ULL);
+//       esp_deep_sleep_start();
+//     }
+//   }
+// }
+
 static RTC_DATA_ATTR int wakeCount = 0;
+char versionDetail[110] = {0};
 
 extern "C" void app_main() {
 //  esp_log_level_set("*", ESP_LOG_WARN);
@@ -89,16 +112,9 @@ extern "C" void app_main() {
   GPIO::pinMode(LED_BUILTIN, OUTPUT);
   GPIO::digitalWrite(LED_BUILTIN, false);
 
-  // {
-  //   ESP_LOGI(TAG, "DEBUG DELAY START");
-  //   for (int i=0; i<50; i++) {
-  //     GPIO::digitalWrite(LED_BUILTIN, i & 1);
-  //     delay(100);
-  //   }
-  //   ESP_LOGI(TAG, "DEBUG DELAY END");
-  // }
-
-  ESP_LOGI(TAG, "Build %s", versionDetail);
+  const auto app = esp_app_get_description();
+  snprintf((char *)versionDetail, sizeof versionDetail, "%s %s %s", app->version, app->date, app->time);
+  ESP_LOGI(TAG, "Build: %s", versionDetail);
   ESP_LOGI(TAG, "Wake: %d reset: %d count: %d", wakeCause, resetCause, wakeCount);
 
   esp_err_t ret = nvs_flash_init();
@@ -111,34 +127,85 @@ extern "C" void app_main() {
   ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_event_loop_create_default());
 
+// test_fn();
+
   // ESP_LOGI(TAG,"Heap %lu",esp_get_free_heap_size());
-  GPIO::digitalWrite(LED_BUILTIN, false);
   ESP_LOGI(TAG, "Create TRV");
   Trv *trv = new Trv();
-  uint32_t dreamTime;
+  uint32_t dreamSecs = 1;
 
   if (trv->flatBattery() && !trv->is_charging()) {
     ESP_LOGI(TAG, "Battery exhausted");
-    dreamTime = 60 * 60 * 1000000UL;  // 1 hour
+    dreamSecs = 60 * 60;
   } else {
-    if (resetCause != ESP_RST_DEEPSLEEP) {
-      resetCause = ESP_RST_DEEPSLEEP;  // To suppress further reset in no-sleep mode
-      trv->resetValve();
-    }
-
     ESP_LOGI(TAG, "Check touch button/device name");
     if (!trv->deviceName()[0] || touchButtonPressed()) {
-      ESP_LOGI(TAG, "Touch button pressed");
-      new CaptivePortal(trv, trv->deviceName());
-      // wait for max 5 mins. The CaptivePortal will restart the device under user control
-      for (int i = 0; i < 10 * 60; i++) {
-        GPIO::digitalWrite(LED_BUILTIN, i & 1);
-        delay(i & 1 ? 900 : 100);
+      ESP_LOGI(TAG, "Touch button pressed / device name '%s'", trv->deviceName());
+      CaptivePortal portal(trv, trv->deviceName());
+      switch (portal.exitStatus) {
+        case exit_status_t::CALIBRATE: {
+            trv->calibrate();
+            dreamSecs = 1;
+          }
+          break;
+        case exit_status_t::TEST_MODE: {
+            auto state = trv->getState(true);
+            delete trv;
+            ESP_LOGI(TAG, "Enter test mode");
+            // In test mode, we just cycle the valve and print the count
+            BatteryMonitor* battery = new BatteryMonitor(BATTERY, CHARGING);
+            uint8_t currentPosition = 0;
+            MotorController* motor = new MotorController(MOTOR, NSLEEP, battery, currentPosition, state.config.motor);
+            int count = 0;
+            bool failed = false;
+            GPIO::digitalWrite(LED_BUILTIN, false);
+            while (true) {
+              if (failed) {
+                  GPIO::digitalWrite(LED_BUILTIN, true);
+                  delay(500);
+                  GPIO::digitalWrite(LED_BUILTIN, false);
+                  delay(200);
+              } else {
+                ESP_LOGI(TAG, "Test cycle %d", count++);
+
+                float temp = 0;
+                DallasOneWire tempSensor(18, temp);
+
+                const int target = count & 1 ? 100 : 0;
+                motor->setValvePosition(target);
+                motor->wait();
+                if (motor->getValvePosition() != target) {
+                  ESP_LOGW(TAG, "Failed to reach target %d, got %d. Sleeping.", target, motor->getValvePosition());
+                  //failed = true;
+                }
+                delay(2000);
+              }
+              if (touchButtonPressed()) {
+                ESP_LOGI(TAG, "Exit test mode on touch");
+                dreamSecs = 1;
+                break;
+              }
+            }
+          }
+          break;
+        case exit_status_t::POWER_OFF:
+          ESP_LOGI(TAG, "Power off requested");
+          dreamSecs = 0x7FFFFFFF; // 30 * 24 * 60 * 60;
+          break;
+        case exit_status_t::CLOSED:
+        case exit_status_t::NONE:
+        case exit_status_t::TIME_OUT:
+          dreamSecs = 1;
+          break;
       }
-      dreamTime = 1;
     } else {
+      if (resetCause != ESP_RST_DEEPSLEEP) {
+        resetCause = ESP_RST_DEEPSLEEP;  // To suppress further reset in no-sleep mode
+        trv->resetValve();
+      }
+
       checkForMessages(trv);
-      dreamTime = trv->getState(true).config.sleep_time * 1000000UL;  // 20 seconds
+      dreamSecs = trv->getState(true).config.sleep_time;
     }
   }
 
@@ -148,9 +215,10 @@ extern "C" void app_main() {
   GPIO::digitalWrite(LED_BUILTIN, true);
   GPIO::pinMode(TOUCH_PIN, INPUT);
 
+  // Ideally, we'd wake on CHARGING changed, but in the current h/w this is not an RTC_GPIO
   esp_sleep_enable_ext1_wakeup(1ULL << TOUCH_PIN, ESP_EXT1_WAKEUP_ANY_HIGH);
-  esp_sleep_enable_timer_wakeup(dreamTime);
-  ESP_LOGI(TAG, "%s %lu", "deep sleep", dreamTime);
+  esp_sleep_enable_timer_wakeup(dreamSecs * 1000000ULL);
+  ESP_LOGI(TAG, "deep sleep %u secs", dreamSecs);
 
   esp_deep_sleep_start();
 }
