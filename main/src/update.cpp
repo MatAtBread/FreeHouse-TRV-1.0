@@ -65,7 +65,8 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
         ESP_LOGI(TAG, "HTTP_EVENT_ON_FINISH");
         ERR_BACKTRACE(esp_ota_end(update->handle));
         ERR_BACKTRACE(esp_ota_set_boot_partition(update->partition));
-        rtc_ram_preserving_restart();
+        // rtc_ram_preserving_restart();
+        esp_restart();
         break;
     case HTTP_EVENT_DISCONNECTED:
         ESP_LOGI(TAG, "HTTP_EVENT_DISCONNECTED");
@@ -104,7 +105,13 @@ class SoftWatchDog: public WithTask {
   }
 };
 
-void Trv::doUpdate(const char *otaUrl, const char *otaSsid, const char *otaPwd) {
+void Trv::requestUpdate(const char *otaUrl, const char *otaSsid, const char *otaPwd) {
+  this->otaUrl = otaUrl;
+  this->otaSsid = otaSsid;
+  this->otaPwd = otaPwd;
+}
+
+void Trv::doUpdate() {
     std::string otaUrlStr = otaUrl;
     if (!otaUrlStr.ends_with("/")) {
       otaUrlStr += "/";
@@ -115,10 +122,10 @@ void Trv::doUpdate(const char *otaUrl, const char *otaSsid, const char *otaPwd) 
     otaUrlStr += "/";
     otaUrlStr += "trv-1.bin";
 
-    WiFiStation sta((const uint8_t *)otaSsid, (const uint8_t *)otaPwd, Trv::deviceName(), 1);
+    WiFiStation sta((const uint8_t *)otaSsid.c_str(), (const uint8_t *)otaPwd.c_str(), Trv::deviceName(), 1);
     sta.connect();
 
-    ESP_LOGI(TAG, "OTA update URL: %s, Wifi %s", otaUrlStr.c_str(), otaSsid);
+    ESP_LOGI(TAG, "OTA update URL: %s, Wifi %s", otaUrlStr.c_str(), otaSsid.c_str());
     esp_http_client_config_t config = {
         .url = otaUrlStr.c_str(),
         .cert_pem = NULL,
@@ -156,7 +163,8 @@ void Trv::doUpdate(const char *otaUrl, const char *otaSsid, const char *otaPwd) 
       esp_err_t ret = esp_https_ota(&ota_config);
 
       if (ret == ESP_OK) {
-        rtc_ram_preserving_restart();
+        // rtc_ram_preserving_restart();
+        esp_restart();
       }
     }
   }

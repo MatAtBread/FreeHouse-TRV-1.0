@@ -102,6 +102,9 @@ Trv::Trv() {
 }
 
 Trv::~Trv() {
+  if (this->otaUrl.length()) {
+    doUpdate();
+  }
   delete motor;
   delete battery;
   delete tempSensor;

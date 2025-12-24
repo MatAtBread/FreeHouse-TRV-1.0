@@ -104,7 +104,7 @@ void Trv::processNetMessage(const char *json) {
       && cJSON_IsString(ssid) && (ssid->valuestring != NULL)
       && cJSON_IsString(pwd) && (pwd->valuestring != NULL)) {
         ESP_LOGI(TAG, "OTA URL: %s, Wifi %s", url->valuestring, ssid->valuestring);
-        doUpdate(url->valuestring, ssid->valuestring, pwd->valuestring) ;
+        requestUpdate(url->valuestring, ssid->valuestring, pwd->valuestring) ;
     }
   }
   // Free the root object

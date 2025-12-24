@@ -68,8 +68,13 @@ protected:
   MotorController *motor;
   BatteryMonitor *battery;
   TrvFS *fs;
-  void doUpdate(const char *otaUrl, const char *otaSsid, const char *otaPwd);
+
+  std::string otaUrl;
+  std::string otaSsid;
+  std::string otaPwd;
+  void requestUpdate(const char *otaUrl, const char *otaSsid, const char *otaPwd);
   void doUnpair();
+  void doUpdate();
 
 public:
   Trv();
