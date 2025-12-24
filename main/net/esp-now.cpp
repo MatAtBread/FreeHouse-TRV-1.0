@@ -29,7 +29,7 @@ typedef struct {
   esp_wifi_rxctrl_t rx;
 } pairing_info_t;
 
-static pairing_info_t pairInfo[20] = {0};
+static pairing_info_t pairInfo[20] = {{0}};
 static pairing_info_t *nextPair = NULL;
 
 

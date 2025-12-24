@@ -51,8 +51,6 @@ const char *systemModes[] = {
     "sleep"
 };
 
-const char accessPointName[] = "FreeHouse-TRV";
-
 bool startsWith(const char *search, const char *match) {
   return strncmp(search, match, strlen(match)) == 0;
 }

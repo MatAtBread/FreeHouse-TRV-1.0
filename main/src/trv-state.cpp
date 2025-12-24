@@ -48,7 +48,7 @@ static RTC_DATA_ATTR trv_state_t globalState = {
 
 const char *Trv::deviceName() { return globalState.config.mqttConfig.device_name; }
 uint32_t Trv::stateVersion() { return globalState.version; }
-const int i = sizeof(globalState.config.passKey);
+
 #define UPDATE_STATE(number, default_expr) \
   if (state.version == number) { \
     state.version +=1; \
