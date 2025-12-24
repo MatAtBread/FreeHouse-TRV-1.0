@@ -158,15 +158,6 @@ void Trv::saveState() {
 }
 
 void Trv::resetValve() {
-  // ESP_LOGI(TAG, "Reset: open valve");
-  // When restarting after a reset or power loss (eg new battery), force open the valve
-  // globalState.sensors.position = 50;  // We don't know what the valve position is after a hard reset, so we leave the state indeterminate so the first call to setValvePosition does something
-  // motor->setValvePosition(100);
-  // ESP_LOGI(TAG, "Reset: wait until valve opened");
-  // motor->wait();
-
-  // Once the valve is open, we can set the target position depending on the state
-  ESP_LOGI(TAG, "Reset: valve opened, set system mode");
   motor->resetValve();
   globalState.sensors.position = 50;  // We don't know what the valve position is after a hard reset, so we leave the state indeterminate so the first call to setValvePosition does something
   setSystemMode(globalState.config.system_mode);

@@ -6,7 +6,7 @@
 #define maxMotorTime      10000
 #define minMotorTime      400
 #else
-#define maxMotorTime      30000
+#define maxMotorTime      24000
 #define minMotorTime      1000
 #endif
 
@@ -77,14 +77,14 @@ uint8_t MotorController::getValvePosition() {
   return current;
 }
 
-static char bar[200];
-static void charChart(int b, char c) {
-    if (b > sizeof(bar) - 3) b = sizeof(bar) - 2;
-    bar[b] = c;
-}
-
 void MotorController::resetValve() {
-  memset(avgAvg, 0, sizeof avgAvg);
+  if (avgAvg[0] == 0 && avgAvg[2] == 0) {
+    ESP_LOGW(TAG,"MotorController checksum mismatch \u25B2%d \u25BC%d {%08x}. Starting calibration...", avgAvg[0], avgAvg[2], avgAvg[1]);
+    memset(avgAvg, 0, sizeof avgAvg);
+    calibrate();
+  } else {
+    ESP_LOGI(TAG,"MotorController checksum OK. Calibation values \u25B2%d \u25BC%d {%08x}", avgAvg[0], avgAvg[2], avgAvg[1]);
+  }
 }
 
 void MotorController::calibrate() {
@@ -93,16 +93,16 @@ void MotorController::calibrate() {
   wait();
 
   delay(250);
-  resetValve();
+  memset(avgAvg, 0, sizeof avgAvg);
 
   current = 50;
   calibrating = true;
   ESP_LOGI(TAG,"Calibrate - clear state, open");
   setValvePosition(100);
   wait();
-  delay(2500);
-  ESP_LOGI(TAG,"Calibrate - first pass avgAvg %d %d", avgAvg[0], avgAvg[2]);
-  resetValve();
+  delay(1500);
+  ESP_LOGI(TAG,"Calibrate - first pass avgAvg \u25B2%d \u25BC%d", avgAvg[0], avgAvg[2]);
+  memset(avgAvg, 0, sizeof avgAvg);
 
   current = 50;
 
@@ -110,14 +110,21 @@ void MotorController::calibrate() {
   setValvePosition(0);
   wait();
 
-  delay(2500);
+  delay(1500);
 
   ESP_LOGI(TAG,"Calibrate - open");
   setValvePosition(100);
   wait();
 
   calibrating = false;
-  ESP_LOGI(TAG,"Calibrate - done ^%d v%d", avgAvg[0], avgAvg[2]);
+  avgAvg[1] = 0xDad1C001;
+  ESP_LOGI(TAG,"Calibrate - done \u25B2%d \u25BC%d {%08x}", avgAvg[0], avgAvg[2], avgAvg[1]);
+}
+
+static char bar[200];
+static void charChart(int b, char c) {
+    if (b > sizeof(bar) - 3) b = sizeof(bar) - 2;
+    bar[b] = c;
 }
 
 // The task depends on the members target & getDirection(), which is why we start it when any of them change
@@ -144,7 +151,7 @@ void MotorController::task() {
   const char *state = "start";
 
   int batt = noloadBatt;
-  ESP_LOGI(TAG, "MotorController %s: noloadBatt %f, target %d, current %d, timeout %d, ^%d, v%d",
+  ESP_LOGI(TAG, "MotorController %s: noloadBatt %f, target %d, current %d, timeout %d, \u25B2%d, \u25BC%d",
       state,
       noloadBatt / 1000.0,
       target, current,
@@ -250,5 +257,5 @@ void MotorController::task() {
       strcmp(state,"running") ? "" : "\x1b[1A\r") ;
   }
 
-  ESP_LOGI(TAG,"MotorController: %s avgAvg ^%d v%d count %d, batt %d -> %d", state, avgAvg[0], avgAvg[2], count, noloadBatt, batt);
+  ESP_LOGI(TAG,"MotorController: %s avgAvg \u25B2%d \u25BC%d {%08x} count %d, batt %d -> %d", state, avgAvg[0], avgAvg[2], avgAvg[1], count, noloadBatt, batt);
 }

@@ -187,7 +187,8 @@ extern "C" void app_main() {
               }
               if (touchButtonPressed()) {
                 ESP_LOGI(TAG, "Exit test mode on touch");
-                esp_restart();
+                dreamSecs = 1;
+                break;
               }
             }
           }

@@ -2,6 +2,7 @@
 #include "trv-state.h"
 
 #include "esp_log.h"
+#include "esp_sleep.h"
 #include "helpers.h"
 #include "wifi-sta.hpp"
 #include "esp_https_ota.h"
@@ -19,6 +20,11 @@ typedef struct {
   esp_ota_handle_t handle;
   const esp_partition_t *partition;
 } ota_data_t;
+
+void rtc_ram_preserving_restart() {
+  esp_sleep_enable_timer_wakeup(1000000ULL);
+  esp_deep_sleep_start();
+}
 
 esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 {
@@ -59,7 +65,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
         ESP_LOGI(TAG, "HTTP_EVENT_ON_FINISH");
         ERR_BACKTRACE(esp_ota_end(update->handle));
         ERR_BACKTRACE(esp_ota_set_boot_partition(update->partition));
-        esp_restart();
+        rtc_ram_preserving_restart();
         break;
     case HTTP_EVENT_DISCONNECTED:
         ESP_LOGI(TAG, "HTTP_EVENT_DISCONNECTED");
@@ -93,7 +99,7 @@ class SoftWatchDog: public WithTask {
     if (!cancel && seconds <= 0) {
       ESP_LOGW(TAG, "SoftWatchDog restart!");
       vTaskDelay(100 / portTICK_PERIOD_MS);
-      esp_restart();
+      rtc_ram_preserving_restart();
     }
   }
 };
@@ -150,7 +156,7 @@ void Trv::doUpdate(const char *otaUrl, const char *otaSsid, const char *otaPwd) 
       esp_err_t ret = esp_https_ota(&ota_config);
 
       if (ret == ESP_OK) {
-        esp_restart();
+        rtc_ram_preserving_restart();
       }
     }
   }

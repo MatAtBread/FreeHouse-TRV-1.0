@@ -112,9 +112,6 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t *req) {
   } else if (startsWith(url, "/test-mode")) {
     exitPortal(TEST_MODE);
   } else if (startsWith(url, "/calibrate")) {
-    // calibrating = true;
-    // trv->calibrate();
-    // calibrating = false;
     exitPortal(CALIBRATE);
   } else if (startsWith(url, "/power-off")) {
     exitPortal(POWER_OFF);
@@ -125,10 +122,10 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t *req) {
       if (strlen(passphrase) && get_key_for_passphrase(passphrase,(uint8_t *)passKey) == 0) {
       trv->saveState();
     }
-  } else if (startsWith(url, "/net-zigbee")) {
-    trv->setNetMode(NET_MODE_ZIGBEE);
-    delay(200);
-    esp_restart();
+  // } else if (startsWith(url, "/net-zigbee")) {
+  //   trv->setNetMode(NET_MODE_ZIGBEE);
+  //   delay(200);
+  //   esp_restart();
   } else if (startsWith(url, "/net-")) {
     unencode(buffer, strchr(url + 1, '/') + 1, sizeof buffer);
     ESP_LOGI(TAG, "Set networking %s", buffer);
@@ -155,7 +152,10 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t *req) {
       mqttConfig.mqtt_port = atoi(port);
     trv->setNetMode(startsWith(url, "/net-esp") ? NET_MODE_ESP_NOW : NET_MODE_MQTT, &mqttConfig);
     delay(200);
-    esp_restart();
+    // Since at the moment we DON'T support anything other than NET_MODE_ESP_NOW, there's no
+    // need to restart, which clears the RTC RAM and therefore causes an unnecessary valve calibration
+    exitPortal(CLOSED);
+    // esp_restart();
   }
 
   if (strcmp(url, root)) {
