@@ -30,10 +30,6 @@ MotorController::MotorController(gpio_num_t pinDir, gpio_num_t pinSleep, Battery
   setDirection(0);
 }
 
-MotorController::~MotorController() {
-  wait();
-}
-
 int MotorController::getDirection() {
   if (GPIO::digitalRead(pinSleep) == false) return 0;
   return GPIO::digitalRead(pinDir) != params.reversed ? 1 : -1;

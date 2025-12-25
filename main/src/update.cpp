@@ -90,7 +90,6 @@ class SoftWatchDog: public WithTask {
   }
   ~SoftWatchDog() {
     cancel = true;
-    wait();
   }
   void task() {
     while (seconds-- > 0 && !cancel) {

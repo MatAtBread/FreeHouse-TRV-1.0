@@ -24,7 +24,6 @@ class MotorController: public WithTask {
 
  public:
   MotorController(gpio_num_t pinDir, gpio_num_t pinSleep, BatteryMonitor* battery, uint8_t& current, motor_params_t &params);
-  ~MotorController();
   void task();
   int getDirection();
   void setValvePosition(int pos /* 0-100, -1 means "current position - stop the motor now" */);
