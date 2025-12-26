@@ -132,7 +132,7 @@ EspNet::EspNet(Trv *trv) : trv(trv) {
     pairName << Trv::deviceName()
     << PAIR_DELIM "FreeHouse" PAIR_DELIM
     "{"
-    "\"model\":\"" FREEHOUSE_MODEL "\","
+    "\"model\":\"" STRINGIFY(BUILD_FREEHOUSE_MODEL) "\","
     "\"state_version\":" << Trv::stateVersion() << ","
     "\"build\":\"" << versionDetail << "\","
     "\"writeable\":[";
