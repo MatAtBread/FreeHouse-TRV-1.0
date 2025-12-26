@@ -1,10 +1,5 @@
-#undef MODEL_L1 // Set for Lockshield hardware, unset for TRV hardware
-
-#ifdef MODEL_L1
-#define FREEHOUSE_MODEL "TRV4"
-#else
-#define FREEHOUSE_MODEL "TRV1"
-#endif
+#define STRINGIFY(x) #x
+#define FREEHOUSE_MODEL STRINGIFY(BUILD_FREEHOUSE_MODEL)
 
 #ifndef TRV_H
 #define TRV_H
@@ -19,9 +14,6 @@
 #define millis()  esp_log_timestamp() // (unsigned long)(esp_timer_get_time() / 1000ULL)
 
 #endif // TRV_H
-
-#undef LED_BUILTIN
-#define LED_BUILTIN 15
 
 #ifdef __cplusplus
 extern "C" {

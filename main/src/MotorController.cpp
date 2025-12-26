@@ -2,7 +2,7 @@
 #include "../common/gpio/gpio.hpp"
 #include "MotorController.h"
 
-#ifdef MODEL_L1
+#if BUILD_FREEHOUSE_MODEL == TRV3
 #define maxMotorTime      10000
 #define minMotorTime      400
 #else
@@ -190,7 +190,7 @@ void MotorController::task() {
         break;
       } else {
         const auto stalled =
-#ifndef MODEL_L1 // TRV-actuator relies on TIME while calibrating
+#if BUILD_FREEHOUSE_MODEL == TRV1
         calibrating ? runTime >= (maxMotorTime * 9) / 10 :
 #endif
           shuntMilliVolts > (stallFactor * (avgAvg[thisDir] ? avgAvg[thisDir] : avgShunt)) / 100;

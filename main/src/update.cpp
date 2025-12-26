@@ -1,3 +1,4 @@
+#include "pins.h"
 #include "trv.h"
 #include "trv-state.h"
 

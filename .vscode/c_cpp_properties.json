@@ -3,9 +3,7 @@
     {
       "name": "ESP-IDF",
       "compilerPath": "${config:idf.toolsPathWin}\\tools\\riscv32-esp-elf\\esp-14.2.0_20241119\\riscv32-esp-elf\\bin\\riscv32-esp-elf-gcc.exe",
-      "compileCommands": [
-        "${config:idf.buildPath}/compile_commands.json"
-      ],
+      "compileCommands": "/Users/matthew/git/FreeHouse-TRV-1.0/build-TRV3/compile_commands.json",
       "includePath": [
         "${config:idf.espIdfPathWin}/components/**",
         "${workspaceFolder}/**"

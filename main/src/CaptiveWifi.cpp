@@ -1,3 +1,4 @@
+#include "pins.h"
 #include "CaptiveWifi.h"
 
 #include "../common/gpio/gpio.hpp"
