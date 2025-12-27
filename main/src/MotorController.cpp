@@ -1,17 +1,16 @@
+#include "pins.h"
 #include "../trv.h"
 #include "../common/gpio/gpio.hpp"
 #include "MotorController.h"
 
 #if BUILD_FREEHOUSE_MODEL == TRV3
 #define maxMotorTime      10000
-#define minMotorTime      400
 #else
 #define maxMotorTime      24000
-#define minMotorTime      1000
 #endif
 
-#define stallFactor       150
-#define samplePeriod      40
+#define minMotorTime      (maxMotorTime / 25)
+#define samplePeriod      80
 #define battSamplePeriod  200
 
 /* In testing:
@@ -21,18 +20,18 @@
 
 static RTC_DATA_ATTR int avgAvg[3];
 
-MotorController::MotorController(gpio_num_t pinDir, gpio_num_t pinSleep, BatteryMonitor* battery, uint8_t &current, motor_params_t &params) :
-  pinDir(pinDir), pinSleep(pinSleep), battery(battery), current(current), params(params) {
+MotorController::MotorController(BatteryMonitor* battery, uint8_t &current, motor_params_t &params) :
+  battery(battery), current(current), params(params) {
   calibrating = false;
   target = current;
-  GPIO::pinMode(pinSleep, OUTPUT);
-  GPIO::pinMode(pinDir, OUTPUT);
+  GPIO::pinMode(NSLEEP, OUTPUT);
+  GPIO::pinMode(MOTOR, OUTPUT);
   setDirection(0);
 }
 
 int MotorController::getDirection() {
-  if (GPIO::digitalRead(pinSleep) == false) return 0;
-  return GPIO::digitalRead(pinDir) != params.reversed ? 1 : -1;
+  if (GPIO::digitalRead(NSLEEP) == false) return 0;
+  return GPIO::digitalRead(MOTOR) != params.reversed ? 1 : -1;
 }
 
 void MotorController::setDirection(int dir) {
@@ -40,15 +39,15 @@ void MotorController::setDirection(int dir) {
   ESP_LOGI(TAG, "MotorController::setDirection %d", dir);
   switch (dir) {
     case -1:
-      GPIO::digitalWrite(pinDir, false != params.reversed);
-      GPIO::digitalWrite(pinSleep, true);
+      GPIO::digitalWrite(MOTOR, false != params.reversed);
+      GPIO::digitalWrite(NSLEEP, true);
       break;
     case 1:
-      GPIO::digitalWrite(pinDir, true != params.reversed);
-      GPIO::digitalWrite(pinSleep, true);
+      GPIO::digitalWrite(MOTOR, true != params.reversed);
+      GPIO::digitalWrite(NSLEEP, true);
       break;
     default:
-      GPIO::digitalWrite(pinSleep, false);
+      GPIO::digitalWrite(NSLEEP, false);
       break;
   }
 }
@@ -193,7 +192,7 @@ void MotorController::task() {
 #if BUILD_FREEHOUSE_MODEL == TRV1
         calibrating ? runTime >= (maxMotorTime * 9) / 10 :
 #endif
-          shuntMilliVolts > (stallFactor * (avgAvg[thisDir] ? avgAvg[thisDir] : avgShunt)) / 100;
+          shuntMilliVolts > (params.stall_percent * (avgAvg[thisDir] ? avgAvg[thisDir] : avgShunt)) / 100;
         if (runTime >= minMotorTime && stalled) {
           // Motor has stalled
           state = "stalled";
@@ -203,7 +202,7 @@ void MotorController::task() {
           setDirection(0);
           delay(100);
           setDirection(reverse);
-          delay(200);
+          delay(params.backoff_ms);
           setDirection(0);
           startTime = 0;
           if (avgShunt > 0) {
@@ -239,12 +238,14 @@ void MotorController::task() {
 
     ESP_LOGI(TAG, "%s", bar);
 
-    const auto milliAmps = ((1000 * shuntMilliVolts) / params.shunt_milliohms) + 1;
-    ESP_LOGI(TAG, "MotorController %10s: dir: %d, noloadBatt %4dmV, batt %4dmV (ΔV %3dmV, ΔVavg %3dmV, I=%3dmA), Rmot %6.2f\xCE\xA9, target %3d, current %3d, runTime: %5lu, timeout: %5u    %s",
+    const auto milliAmps = ((1000 * shuntMilliVolts) / 670) + 1;
+    ESP_LOGI(TAG, "MotorController %10s: dir: %2d, noloadBatt %4dmV, batt %4dmV (ΔV %3dmV, Vstall=%3dmV [%3d], ΔVavg %3dmV, I=%3dmA), Rmot %6.2f\xCE\xA9, target %3d, current %3d, runTime: %5lu, timeout: %5u    %s",
       state,
       getDirection(),
       noloadBatt, batt,
       shuntMilliVolts,
+      (params.stall_percent * (avgAvg[thisDir] ? avgAvg[thisDir] : avgShunt)) / 100,
+      params.stall_percent,
       avgShunt,
       milliAmps,
       (float)batt / (float)milliAmps,

@@ -1,5 +1,11 @@
-#define STRINGIFY(x) #x
-#define FREEHOUSE_MODEL STRINGIFY(BUILD_FREEHOUSE_MODEL)
+// Helper macros for double-stringification
+#ifndef BUILD_FREEHOUSE_MODEL
+#error "BUILD_FREEHOUSE_MODEL is not defined! Check your build system/command line."
+#endif
+
+#define STRINGIZE_HELPER(x) #x
+#define STRINGIZE(x) STRINGIZE_HELPER(x)
+#define FREEHOUSE_MODEL STRINGIZE(BUILD_FREEHOUSE_MODEL)
 
 #ifndef TRV_H
 #define TRV_H

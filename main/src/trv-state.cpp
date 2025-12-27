@@ -9,7 +9,7 @@
 #include "helpers.h"
 #include <net/esp-now.hpp>
 
-#define STATE_VERSION 7L
+#define STATE_VERSION 8L
 
 extern const char *systemModes[];
 
@@ -26,7 +26,7 @@ static RTC_DATA_ATTR trv_state_t globalState = {
   .config = {
     .current_heating_setpoint = 21.5,
     .local_temperature_calibration = 0.0,
-    .system_mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT,
+    .system_mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP,
     .netMode = NET_MODE_ESP_NOW,
     .mqttConfig = {
         .wifi_ssid = "wifi-ssid",
@@ -35,13 +35,14 @@ static RTC_DATA_ATTR trv_state_t globalState = {
         .mqtt_server = "mqtt.local",
         .mqtt_port = 1883,
     },
-    .passKey = {0}, // Added in STATE_VERSION 3
-    .sleep_time = 20, // Added in STATE_VERSION 4
-    .resolution = 1, // // Added in STATE_VERSION 5
+    .passKey = {0},
+    .sleep_time = 20,
+    .resolution = 1,
+    ._reserved = 0,
     .motor = {
-      .shunt_milliohms = 680, // Added in STATE_VERSION 6
-      // .dc_milliohms = 15000, // Added in STATE_VERSION 6 removed in 7+
       .reversed = false, // Added in STATE_VERSION 7
+      .backoff_ms = 200, // Added in STATE_VERSION 8
+      .stall_percent = 180  // Added in STATE_VERSION 8
     }
   }
 };
@@ -65,33 +66,30 @@ Trv::Trv() {
   __SIZE_TYPE__ r = fs->read("/trv/state", &state, sizeof(state));
   ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
   if (r && (r <= sizeof(state) || state.version < STATE_VERSION)) {
-    UPDATE_STATE(2, memset(state.config.passKey, 0, sizeof (state.config.passKey)));
-    UPDATE_STATE(3, state.config.sleep_time = 20); // Default sleep time
-    UPDATE_STATE(4, state.config.resolution = 3); // Default resolution 10-bit
-    UPDATE_STATE(5, state.config.motor.shunt_milliohms = 680; /*state.config.motor.dc_milliohms = 15000*/);
-    UPDATE_STATE(6, state.config.motor.reversed = false);
+    UPDATE_STATE(7, state.config._reserved = 0; state.config.motor.backoff_ms = 200; state.config.motor.stall_percent = 180; )
     r = sizeof(state);
   }
 
   if (r != sizeof (state) || state.version != STATE_VERSION) {
     ESP_LOGI(TAG, "Default state, version %lu != %lu", state.version, STATE_VERSION);
     // By default we stay in heat mode so that when assembling the hardware, the plunger stays in place
-    globalState.config.system_mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT;
+    globalState.config.system_mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP;
     globalState.config.netMode = NET_MODE_ESP_NOW;
     globalState.config.mqttConfig.mqtt_port = 1883;
     globalState.config.local_temperature_calibration = 0.0;
     globalState.config.current_heating_setpoint = 21;
     globalState.config.sleep_time = 20;
     globalState.config.resolution = 3;
-    globalState.config.motor = { .shunt_milliohms = 680, .reversed = false };
+    globalState.config._reserved = 0;
+    globalState.config.motor = { .reversed = false, .backoff_ms = 200, .stall_percent = 180 };
   } else {
     globalState.config = state.config;
   }
 
   // Get the sensor values
-  tempSensor = new DallasOneWire(DTEMP, globalState.sensors.sensor_temperature);
-  battery = new BatteryMonitor(BATTERY, CHARGING);
-  motor = new MotorController(MOTOR, NSLEEP, battery, globalState.sensors.position, globalState.config.motor);
+  tempSensor = new DallasOneWire(globalState.sensors.sensor_temperature);
+  battery = new BatteryMonitor();
+  motor = new MotorController(battery, globalState.sensors.position, globalState.config.motor);
   getState(true); // Lazily update temp
   ESP_LOGI(TAG,"Initial state: '%s' mqtt://%s:%d, wifi %s >> %s",
     globalState.config.mqttConfig.device_name,
@@ -143,7 +141,8 @@ std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
     "\"sleep_time\":" << s.config.sleep_time << ","
     "\"resolution\":" << (0.5 / (float)(1 << s.config.resolution)) << ","
     "\"unpair\":false,"
-    "\"shunt_milliohms\":" << s.config.motor.shunt_milliohms << ","
+    "\"backoff_ms\":" << s.config.motor.backoff_ms << ","
+    "\"stall_percent\":" << s.config.motor.stall_percent << ","
     //"\"motor_dc_milliohms\":" << s.config.motor.dc_milliohms << ","
     "\"motor_reversed\":" << (s.config.motor.reversed ? "true":"false") <<
     "}";
@@ -166,16 +165,15 @@ void Trv::resetValve() {
   setSystemMode(globalState.config.system_mode);
 }
 
-void Trv::setMotorParameters(int shunt_milliohms, int reversed) {
-  ESP_LOGI(TAG, "Trv::setMotorParameters shunt %d reversed %d", shunt_milliohms, reversed);
-  if (shunt_milliohms > 0) {
-    globalState.config.motor.shunt_milliohms = shunt_milliohms;
+void Trv::setMotorParameters(const motor_params_t& params) {
+  if (params.reversed == true || params.reversed == false) {
+    globalState.config.motor.reversed = params.reversed;
   }
-  // if (motor_dc_milliohms > 0) {
-  //   globalState.config.motor.dc_milliohms = motor_dc_milliohms;
-  // }
-  if (reversed != -1) {
-    globalState.config.motor.reversed = reversed ? true : false;
+  if (params.stall_percent > 100) {
+    globalState.config.motor.stall_percent = params.stall_percent;
+  }
+  if (params.backoff_ms >= 0) {
+    globalState.config.motor.backoff_ms = params.backoff_ms;
   }
   saveState();
 }

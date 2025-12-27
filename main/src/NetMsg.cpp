@@ -18,8 +18,8 @@ FIELD(system_mode);
 FIELD(sleep_time);
 FIELD(resolution);
 FIELD(unpair);
-FIELD(shunt_milliohms);
-FIELD(motor_dc_milliohms);
+FIELD(backoff_ms);
+FIELD(stall_percent);
 FIELD(motor_reversed);
 
 const char* Trv::writeable[] = {
@@ -29,8 +29,8 @@ const char* Trv::writeable[] = {
     field_sleep_time,
     field_resolution,
     field_unpair,
-    field_shunt_milliohms,
-//    field_motor_dc_milliohms,
+    field_backoff_ms,
+    field_stall_percent,
     field_motor_reversed,
     NULL
 };
@@ -49,8 +49,8 @@ void Trv::processNetMessage(const char *json) {
   cJSON *sleep_time = cJSON_GetObjectItem(root, field_sleep_time);
   cJSON *resolution = cJSON_GetObjectItem(root, field_resolution);
   cJSON *unpair = cJSON_GetObjectItem(root, field_unpair);
-  cJSON *shunt_milliohms = cJSON_GetObjectItem(root, field_shunt_milliohms);
-//  cJSON *motor_dc_milliohms = cJSON_GetObjectItem(root, field_motor_dc_milliohms);
+  cJSON *stall_percent = cJSON_GetObjectItem(root, field_stall_percent);
+  cJSON *backoff_ms = cJSON_GetObjectItem(root, field_backoff_ms);
   cJSON *motor_reversed = cJSON_GetObjectItem(root, field_motor_reversed);
 
   auto unpairRequest = cJSON_IsTrue(unpair);
@@ -88,12 +88,12 @@ void Trv::processNetMessage(const char *json) {
       setTempResolution(res);
   }
 
-  auto shunt_value = cJSON_IsNumber(shunt_milliohms) ? shunt_milliohms->valueint : 0;
-  //auto motor_value = cJSON_IsNumber(motor_dc_milliohms) ? motor_dc_milliohms->valueint : 0;
-  auto reversed_value = cJSON_IsBool(motor_reversed) ? cJSON_IsTrue(motor_reversed) : cJSON_IsFalse(motor_reversed) ? 0 : -1;
-  if (shunt_value || reversed_value != -1) {
-    setMotorParameters(shunt_value, reversed_value);
-  }
+  motor_params_t motor = {
+    .reversed = cJSON_IsBool(motor_reversed) ? (bool)cJSON_IsTrue(motor_reversed) : getState(true).config.motor.reversed,
+    .backoff_ms = cJSON_IsNumber(backoff_ms) ? backoff_ms->valueint : -1,
+    .stall_percent = cJSON_IsNumber(stall_percent) ? stall_percent->valueint : -1
+  };
+  setMotorParameters(motor);
 
   cJSON *ota = cJSON_GetObjectItem(root, "ota");
   if (cJSON_IsObject(ota)) {

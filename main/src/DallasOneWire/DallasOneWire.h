@@ -9,7 +9,6 @@ extern "C" {
 
 class DallasOneWire: public WithTask {
  protected:
-  uint8_t pin;
   OW ow;
   float& temp;
   bool configuring = false;
@@ -21,7 +20,7 @@ class DallasOneWire: public WithTask {
   */
 
  public:
-  DallasOneWire(const uint8_t pin, float &temp);
+  DallasOneWire(float &temp);
   ~DallasOneWire();
   void setResolution(uint8_t res);
   float readTemp();

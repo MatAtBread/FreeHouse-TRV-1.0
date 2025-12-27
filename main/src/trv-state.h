@@ -57,6 +57,7 @@ typedef struct trv_state_s
     ENCRYPTION_KEY passKey;
     int sleep_time; // in seconds, 1 to 120
     uint8_t resolution; // 0=9-bit, 1=10-bit, 2=11-bit, 3=12-bit
+    int _reserved;
     motor_params_t motor;
   } config;
 } trv_state_t;
@@ -91,7 +92,7 @@ public:
   bool is_charging();
   void setNetMode(net_mode_t mode, trv_mqtt_t *mqtt = NULL);
   void setSleepTime(int seconds);
-  void setMotorParameters(int shunt_milliohms, int reversed = -1);
+  void setMotorParameters(const motor_params_t &params);
   void calibrate();
   void processNetMessage(const char *json);
 

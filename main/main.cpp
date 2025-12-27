@@ -72,33 +72,6 @@ void checkForMessages(Trv *trv) {
   delete net;
 }
 
-// void test_fn() {
-//   ESP_LOGI(TAG, "DEBUG DELAY START");
-//   for (int i=0; i<50; i++) {
-//     GPIO::digitalWrite(LED_BUILTIN, i & 1);
-//     delay(100);
-//   }
-//   ESP_LOGI(TAG, "DEBUG DELAY END");
-
-//   ESP_LOGI(TAG, "Test fn called");
-//   BatteryMonitor* battery = new BatteryMonitor(0, 20);
-//   uint8_t currentPosition = 0;
-//   MotorController* mc = new MotorController(17, 19, battery, currentPosition, 680, 15000);
-//   while (1) {
-//     mc->setDirection(1);
-//     delay(3000);
-//     mc->setDirection(-1);
-//     delay(3000);
-//     mc->setDirection(0);
-//     delay(3000);
-//     if (touchButtonPressed()) {
-//       esp_sleep_enable_ext1_wakeup(1ULL << TOUCH_PIN, ESP_EXT1_WAKEUP_ANY_HIGH);
-//       esp_sleep_enable_timer_wakeup(60 * 1000000ULL);
-//       esp_deep_sleep_start();
-//     }
-//   }
-// }
-
 static RTC_DATA_ATTR int wakeCount = 0;
 char versionDetail[110] = {0};
 
@@ -127,8 +100,6 @@ extern "C" void app_main() {
   ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-// test_fn();
-
   // ESP_LOGI(TAG,"Heap %lu",esp_get_free_heap_size());
   ESP_LOGI(TAG, "Create TRV");
   Trv *trv = new Trv();
@@ -153,9 +124,9 @@ extern "C" void app_main() {
             delete trv;
             ESP_LOGI(TAG, "Enter test mode");
             // In test mode, we just cycle the valve and print the count
-            BatteryMonitor* battery = new BatteryMonitor(BATTERY, CHARGING);
+            BatteryMonitor* battery = new BatteryMonitor();
             uint8_t currentPosition = 0;
-            MotorController* motor = new MotorController(MOTOR, NSLEEP, battery, currentPosition, state.config.motor);
+            MotorController* motor = new MotorController(battery, currentPosition, state.config.motor);
             int count = 0;
             bool failed = false;
             GPIO::digitalWrite(LED_BUILTIN, false);
@@ -169,7 +140,7 @@ extern "C" void app_main() {
                 ESP_LOGI(TAG, "Test cycle %d", count++);
 
                 float temp = 0;
-                DallasOneWire tempSensor(18, temp);
+                DallasOneWire tempSensor(temp);
 
                 const int target = count & 1 ? 100 : 0;
                 motor->setValvePosition(target);

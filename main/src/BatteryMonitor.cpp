@@ -1,18 +1,19 @@
+#include "pins.h"
 #include "../trv.h"
 #include "../common/gpio/gpio.hpp"
 #include "BatteryMonitor.h"
 
-BatteryMonitor::BatteryMonitor(uint8_t adc, uint8_t chargeIoPin) : adc(adc), pin(chargeIoPin) {
-  GPIO::pinMode(pin, INPUT);
+BatteryMonitor::BatteryMonitor() {
+  GPIO::pinMode(CHARGING, INPUT);
   getRawValue();
 };
 
 bool BatteryMonitor::is_charging() {
-  return GPIO::digitalRead(pin) != 0;
+  return GPIO::digitalRead(CHARGING) != 0;
 }
 
 int BatteryMonitor::getRawValue() {
-  return GPIO::analogReadMilliVolts(adc) * 2;
+  return GPIO::analogReadMilliVolts(BATTERY) * 2;
 }
 
 #define NUM_SAMPLES 10

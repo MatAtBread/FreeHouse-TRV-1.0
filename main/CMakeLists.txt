@@ -12,3 +12,9 @@ idf_component_register(
         "${BUILD_INFO_C}"
     INCLUDE_DIRS "."
 )
+
+if(CMAKE_BINARY_DIR MATCHES "build-TRV1")
+    add_compile_definitions(BUILD_FREEHOUSE_MODEL=TRV1)
+elseif(CMAKE_BINARY_DIR MATCHES "build-TRV3")
+    add_compile_definitions(BUILD_FREEHOUSE_MODEL=TRV3)
+endif()

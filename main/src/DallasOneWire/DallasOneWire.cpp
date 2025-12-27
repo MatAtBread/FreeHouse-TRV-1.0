@@ -1,3 +1,4 @@
+#include "pins.h"
 #include "DallasOneWire.h"
 
 #include <math.h>
@@ -24,8 +25,8 @@ static void retryReset(OW *ow) {
     }
   }
 
-DallasOneWire::DallasOneWire(const uint8_t pin, float& temp) : pin(pin), temp(temp) {
-  if (ow_init(&ow, pin) != ESP_OK) {
+DallasOneWire::DallasOneWire(float& temp) : temp(temp) {
+  if (ow_init(&ow, DTEMP) != ESP_OK) {
     ESP_LOGW(TAG, "DallasOneWire: FAILED TO INIT DS18B20");
     return;
   }

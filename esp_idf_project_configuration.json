@@ -7,9 +7,6 @@
       "sdkconfigDefaults": [],
       "sdkconfigFilePath": ""
     },
-    "env": {
-      "CFLAGS": "-DBUILD_FREEHOUSE_MODEL=TRV1"
-    },
     "flashBaudRate": "",
     "idfTarget": "",
     "monitorBaudRate": "",
@@ -32,9 +29,6 @@
       "buildDirectoryPath": "build-TRV3",
       "sdkconfigDefaults": [],
       "sdkconfigFilePath": ""
-    },
-    "env": {
-      "CFLAGS": "-DBUILD_FREEHOUSE_MODEL=TRV3"
     },
     "flashBaudRate": "",
     "idfTarget": "",
