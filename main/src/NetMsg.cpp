@@ -19,7 +19,7 @@ FIELD(sleep_time);
 FIELD(resolution);
 FIELD(unpair);
 FIELD(backoff_ms);
-FIELD(stall_percent);
+FIELD(stall_ms);
 FIELD(motor_reversed);
 
 const char* Trv::writeable[] = {
@@ -30,7 +30,7 @@ const char* Trv::writeable[] = {
     field_resolution,
     field_unpair,
     field_backoff_ms,
-    field_stall_percent,
+    field_stall_ms,
     field_motor_reversed,
     NULL
 };
@@ -49,7 +49,7 @@ void Trv::processNetMessage(const char *json) {
   cJSON *sleep_time = cJSON_GetObjectItem(root, field_sleep_time);
   cJSON *resolution = cJSON_GetObjectItem(root, field_resolution);
   cJSON *unpair = cJSON_GetObjectItem(root, field_unpair);
-  cJSON *stall_percent = cJSON_GetObjectItem(root, field_stall_percent);
+  cJSON *stall_ms = cJSON_GetObjectItem(root, field_stall_ms);
   cJSON *backoff_ms = cJSON_GetObjectItem(root, field_backoff_ms);
   cJSON *motor_reversed = cJSON_GetObjectItem(root, field_motor_reversed);
 
@@ -91,7 +91,7 @@ void Trv::processNetMessage(const char *json) {
   motor_params_t motor = {
     .reversed = cJSON_IsBool(motor_reversed) ? (bool)cJSON_IsTrue(motor_reversed) : getState(true).config.motor.reversed,
     .backoff_ms = cJSON_IsNumber(backoff_ms) ? backoff_ms->valueint : -1,
-    .stall_percent = cJSON_IsNumber(stall_percent) ? stall_percent->valueint : -1
+    .stall_ms = cJSON_IsNumber(stall_ms) ? stall_ms->valueint : -1
   };
   setMotorParameters(motor);
 

@@ -7,7 +7,7 @@
 typedef struct motor_params_s {
   bool reversed;
   int backoff_ms;
-  int stall_percent;
+  int stall_ms;
 } motor_params_t;
 
 class MotorController: public WithTask {
@@ -17,7 +17,6 @@ class MotorController: public WithTask {
   volatile uint8_t target;
   volatile uint8_t& current;
   motor_params_t& params;
-  bool calibrating;
 
   void setDirection(int dir);
 

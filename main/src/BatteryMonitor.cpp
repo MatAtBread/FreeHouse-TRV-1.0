@@ -16,13 +16,14 @@ int BatteryMonitor::getRawValue() {
   return GPIO::analogReadMilliVolts(BATTERY) * 2;
 }
 
-#define NUM_SAMPLES 10
-int BatteryMonitor::getValue() {
+int BatteryMonitor::getValue(int samples) {
   auto a = 0;
-  for (int i=0; i<NUM_SAMPLES; i++)
+  for (int i=0; i<samples; i++) {
+    delay(10);
     a += getRawValue();
+  }
 
-  return a / NUM_SAMPLES;
+  return a / samples;
 }
 
 uint8_t BatteryMonitor::getPercent(int raw) {

@@ -1,28 +1,25 @@
-#include "pins.h"
-#include "../trv.h"
-#include "../common/gpio/gpio.hpp"
 #include "MotorController.h"
 
+#include "../common/gpio/gpio.hpp"
+#include "../trv.h"
+#include "pins.h"
+
 #if BUILD_FREEHOUSE_MODEL == TRV3
-#define maxMotorTime      10000
+#define maxMotorTime 12000
 #else
-#define maxMotorTime      24000
+#define maxMotorTime 24000
 #endif
 
-#define minMotorTime      (maxMotorTime / 25)
-#define samplePeriod      80
-#define battSamplePeriod  200
+#define minMotorTime (maxMotorTime / 25)
+#define peakLoPercent 96
+#define peakHiPercent 102
 
 /* In testing:
   typical Vshunt at full stall in 0.23v (batt=4110mv, R=0.66ohms), making I=0.338mA and Rmotor=12.16-Rshunt, or 11.48ohms
   In-rush Vshunt on *reversal* is 0.38v, from stationary is 0.21v
 */
 
-static RTC_DATA_ATTR int avgAvg[3];
-
-MotorController::MotorController(BatteryMonitor* battery, uint8_t &current, motor_params_t &params) :
-  battery(battery), current(current), params(params) {
-  calibrating = false;
+MotorController::MotorController(BatteryMonitor* battery, uint8_t& current, motor_params_t& params) : battery(battery), current(current), params(params) {
   target = current;
   GPIO::pinMode(NSLEEP, OUTPUT);
   GPIO::pinMode(MOTOR, OUTPUT);
@@ -73,69 +70,59 @@ uint8_t MotorController::getValvePosition() {
 }
 
 void MotorController::resetValve() {
-  if (avgAvg[0] == 0 && avgAvg[2] == 0) {
-    ESP_LOGW(TAG,"MotorController checksum mismatch \u25B2%d \u25BC%d {%08x}. Starting calibration...", avgAvg[0], avgAvg[2], avgAvg[1]);
-    memset(avgAvg, 0, sizeof avgAvg);
-    calibrate();
-  } else {
-    ESP_LOGI(TAG,"MotorController checksum OK. Calibation values \u25B2%d \u25BC%d {%08x}", avgAvg[0], avgAvg[2], avgAvg[1]);
-  }
 }
 
 void MotorController::calibrate() {
-  ESP_LOGI(TAG,"Calibrate - stop");
-  setValvePosition(-1); // Just stops the motor where it is
-  wait();
-
-  delay(250);
-  memset(avgAvg, 0, sizeof avgAvg);
-
-  current = 50;
-  calibrating = true;
-  ESP_LOGI(TAG,"Calibrate - clear state, open");
+  ESP_LOGI(TAG, "MotorController::calibrate");
   setValvePosition(100);
   wait();
-  delay(1500);
-  ESP_LOGI(TAG,"Calibrate - first pass avgAvg \u25B2%d \u25BC%d", avgAvg[0], avgAvg[2]);
-  memset(avgAvg, 0, sizeof avgAvg);
-
-  current = 50;
-
-  ESP_LOGI(TAG,"Calibrate - close");
   setValvePosition(0);
   wait();
-
-  delay(1500);
-
-  ESP_LOGI(TAG,"Calibrate - open");
   setValvePosition(100);
   wait();
-
-  calibrating = false;
-  avgAvg[1] = 0xDad1C001;
-  ESP_LOGI(TAG,"Calibrate - done \u25B2%d \u25BC%d {%08x}", avgAvg[0], avgAvg[2], avgAvg[1]);
 }
 
 static char bar[200];
 static void charChart(int b, char c) {
-    if (b > sizeof(bar) - 3) b = sizeof(bar) - 2;
-    bar[b] = c;
+  if (b > sizeof(bar) - 3) b = sizeof(bar) - 2;
+  bar[b] = c;
 }
 
+class MovingAverage {
+  private:
+    int *values;
+    int index;
+    int count;
+    int total;
+    int size;
+
+  public:
+    MovingAverage(int size) : index(0), count(0), total(0), size(size) {
+      values = new int[size];
+      memset(values, 0, sizeof(int) * size);
+    }
+
+    ~MovingAverage() {
+      delete[] values;
+    }
+
+    int add(int value) {
+      total -= values[index];
+      values[index] = value;
+      total += value;
+      index = (index + 1) % size;
+      if (count < size) count++;
+      return total / count;
+    }
+};
+
+static RTC_DATA_ATTR int trackRatio = 0;
 // The task depends on the members target & getDirection(), which is why we start it when any of them change
 void MotorController::task() {
   // Get a stable battery level
   auto noloadBatt = battery->getValue();
-  auto sample = noloadBatt;
-  for (int i=0; i<10; i++) {
-    delay(10);
-    sample = battery->getValue();
-    if (abs((signed)(noloadBatt - sample)) < 100)
-      break;
-    noloadBatt = (noloadBatt * 7 + sample) / 8;
-  }
 
-  if (noloadBatt < 1000) {
+  if (noloadBatt < 3000) {
     ESP_LOGW(TAG, "MotorController: noloadBatt %f too low, stop", noloadBatt / 1000.0);
     target = 50;
     current = 50;
@@ -143,116 +130,119 @@ void MotorController::task() {
   }
 
   unsigned int startTime = 0;
-  const char *state = "start";
+  const char* state = "start";
 
   int batt = noloadBatt;
-  ESP_LOGI(TAG, "MotorController %s: noloadBatt %f, target %d, current %d, timeout %d, \u25B2%d, \u25BC%d",
-      state,
-      noloadBatt / 1000.0,
-      target, current,
-      maxMotorTime,
-      avgAvg[0], avgAvg[2]
-    );
+  int stallStart = 0;
+  int now = 0;
+  int minRatio = 0, maxRatio = 0;
+  int currentRatio = 0;
 
-  int totalShunt = 0;
-  int count = 0;
+  MovingAverage battAvg(6);
 
-  while (getDirection() || target != current) {
-    delay(samplePeriod);
-    count += 1;
-    const auto now = millis();
-    if (target != current) {
-      const auto dir = target > current ? 1 : -1;
-      if (dir != getDirection()) {
-        setDirection(dir);
-        startTime = now;
-        state = "seeking";
-      }
+  while (true) {
+    if (target == current)
+      break;
+    const auto dir = target > current ? 1 : -1;
+    now = millis();
+    const auto runTime = startTime ? now - startTime : 0;
+    if (dir != getDirection()) {
+      setDirection(0);
+      delay(100);
+      setDirection(dir);
+      startTime = now;
+      state = "seeking";
+      stallStart = 0;
+    }
+    auto pos = 1 + (runTime * 98 / maxMotorTime);
+    if (dir < 0) pos = 100 - pos;
+    current = pos;
+
+    int spotBatt = battery->getValue();
+    batt = battAvg.add(spotBatt);
+
+    const auto shuntMilliVolts = noloadBatt > batt ? noloadBatt - batt : 1;
+    currentRatio = shuntMilliVolts * 3000 / batt;
+
+    if (runTime > maxMotorTime) {
+      // Motor has timed-out
+      state = "timed-out";
+      target = current;
+      break;
     }
 
-    batt = (batt * (battSamplePeriod / samplePeriod) + battery->getValue()) / ((battSamplePeriod / samplePeriod) + 1);
-    const auto shuntMilliVolts = noloadBatt > batt ? noloadBatt - batt : 1;
-    totalShunt += shuntMilliVolts;
-    const auto avgShunt = totalShunt / count;
-    const auto runTime = startTime ? now - startTime : 0;
-    if (startTime)
-      state = "running";
-    const auto thisDir = getDirection()+1;
-    if (thisDir == 1) {
-      noloadBatt = (noloadBatt * 7 + batt) / 8;
-      state = "idle";
+    if (runTime <= minMotorTime) {
+      if (currentRatio > trackRatio) {
+        trackRatio = currentRatio;
+      }
     } else {
-      if (avgShunt > 400) {
-        state = "stuck";
-        target = current;
-        setDirection(0);
-        break;
-      } else {
-        const auto stalled =
-#if BUILD_FREEHOUSE_MODEL == TRV1
-        calibrating ? runTime >= (maxMotorTime * 9) / 10 :
-#endif
-          shuntMilliVolts > (params.stall_percent * (avgAvg[thisDir] ? avgAvg[thisDir] : avgShunt)) / 100;
-        if (runTime >= minMotorTime && stalled) {
+      minRatio = (peakLoPercent * trackRatio) / 100 - 1;
+      if (minRatio < 0) minRatio = 0;
+      maxRatio = (peakHiPercent * trackRatio) / 100 + 1;
+      if (currentRatio >= minRatio && currentRatio <= maxRatio) {
+        // Within range
+        if (!stallStart)
+          stallStart = now;
+        else if (now - stallStart > params.stall_ms) {
           // Motor has stalled
           state = "stalled";
           current = target;
-          // Back-off
-          const auto reverse = -getDirection();
-          setDirection(0);
-          delay(100);
-          setDirection(reverse);
-          delay(params.backoff_ms);
-          setDirection(0);
-          startTime = 0;
-          if (avgShunt > 0) {
-            avgAvg[thisDir] = avgAvg[thisDir] ? ((avgAvg[thisDir] * 3) + avgShunt) / 4 : avgShunt;
-          }
-        } else if (runTime > maxMotorTime) {
-          // Motor has timed-out
-          if (getDirection() == 1 && target == 100) {
-            current = target;
-            state = "opened";
-          } else {
-            state = "timed-out";
-            target = current;
-          }
-          startTime = 0;
-          setDirection(0);
-        } else {
-          current = 50 + getDirection();
+          break;
         }
+      } else if (currentRatio < minRatio) {
+        // Fall in current
+        stallStart = 0;
+      } else if (currentRatio > maxRatio) {
+        // Rise in current
+        stallStart = 0;
+        trackRatio = currentRatio;
+      } else {
+        ESP_LOGE(TAG, "MotorController: logic error");
       }
     }
 
-
     // Longging only
-    memset(bar,'-',sizeof(bar) - 1);
+    if (true) {
+      memset(bar, ' ', sizeof(bar) - 1);
+      charChart((noloadBatt - spotBatt) / 3, '=');
 
-    charChart(avgAvg[thisDir] / 2, '#');
-    charChart(avgAvg[2 - thisDir] / 2, ' ');
-    charChart(shuntMilliVolts / 2, '+');
-    charChart(avgShunt / 2, '|');
+      charChart(minRatio / 3, '<');
+      charChart(maxRatio / 3, '>');
+      charChart(currentRatio / 3, '|');
+      bar[sizeof(bar) - 1] = 0;
 
-    bar[sizeof(bar) - 1] = 0;
+      ESP_LOGI(TAG, "%s %3d", bar, stallStart ? (now - stallStart) : -1);
 
-    ESP_LOGI(TAG, "%s", bar);
-
-    const auto milliAmps = ((1000 * shuntMilliVolts) / 670) + 1;
-    ESP_LOGI(TAG, "MotorController %10s: dir: %2d, noloadBatt %4dmV, batt %4dmV (ΔV %3dmV, Vstall=%3dmV [%3d], ΔVavg %3dmV, I=%3dmA), Rmot %6.2f\xCE\xA9, target %3d, current %3d, runTime: %5lu, timeout: %5u    %s",
-      state,
-      getDirection(),
-      noloadBatt, batt,
-      shuntMilliVolts,
-      (params.stall_percent * (avgAvg[thisDir] ? avgAvg[thisDir] : avgShunt)) / 100,
-      params.stall_percent,
-      avgShunt,
-      milliAmps,
-      (float)batt / (float)milliAmps,
-      target, current,
-      runTime, maxMotorTime,
-      strcmp(state,"running") ? "" : "\x1b[1A\r") ;
+      ESP_LOGI(TAG, "MotorController %10s: dir: %2d, noloadBatt %4dmV, batt %4dmV, ΔV %3dmV, Vpeak %3dmV, target %3d, current %3d, runTime: %5lu, timeout: %5u, stallStart %4d    %s",
+              state,
+              getDirection(),
+              noloadBatt, batt,
+              shuntMilliVolts,
+              trackRatio,
+              target, current,
+              runTime, maxMotorTime,
+              now - stallStart,
+              strcmp(state, "seeking") ? "" : "\x1b[1A\r");
+    }
   }
-
-  ESP_LOGI(TAG,"MotorController: %s avgAvg \u25B2%d \u25BC%d {%08x} count %d, batt %d -> %d", state, avgAvg[0], avgAvg[2], avgAvg[1], count, noloadBatt, batt);
+  // Back-off
+  const auto reverse = -getDirection();
+  if (reverse) {
+    setDirection(0);
+    delay(100);
+    setDirection(reverse);
+    delay(params.backoff_ms);
+    // Update trackRatio to be at the lower range of the average of the initial and current values
+    trackRatio = ((trackRatio + currentRatio) * peakLoPercent) / 200;
+  }
+  setDirection(0);
+  ESP_LOGI(TAG, "MotorController %10s: dir: %2d, noloadBatt %4dmV, batt %4dmV, ΔV %3dmV, Vpeak %3dmV, target %3d, current %3d, runTime: %5lu, timeout: %5u, stallStart %4d    ",
+            state,
+            getDirection(),
+            noloadBatt, batt,
+            noloadBatt - batt,
+            trackRatio,
+            target, current,
+            now - startTime, maxMotorTime,
+            stallStart);
 }

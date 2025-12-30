@@ -12,7 +12,7 @@ class BatteryMonitor {
   BatteryMonitor();
   bool is_charging();
   uint8_t getPercent(int raw = NO_VALUE);
-  int getValue(); // Get an average value
+  int getValue(int samples = 3); // Get an average value
 };
 
 #endif

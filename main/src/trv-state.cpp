@@ -11,6 +11,9 @@
 
 #define STATE_VERSION 8L
 
+#define STALL_MS_DEFAULT 1000
+#define BACKOFF_MS_DEFAULT 100
+
 extern const char *systemModes[];
 
 static RTC_DATA_ATTR trv_state_t globalState = {
@@ -41,8 +44,8 @@ static RTC_DATA_ATTR trv_state_t globalState = {
     ._reserved = 0,
     .motor = {
       .reversed = false, // Added in STATE_VERSION 7
-      .backoff_ms = 200, // Added in STATE_VERSION 8
-      .stall_percent = 180  // Added in STATE_VERSION 8
+      .backoff_ms = 100, // Added in STATE_VERSION 8
+      .stall_ms = 200  // Added in STATE_VERSION 8
     }
   }
 };
@@ -66,7 +69,7 @@ Trv::Trv() {
   __SIZE_TYPE__ r = fs->read("/trv/state", &state, sizeof(state));
   ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
   if (r && (r <= sizeof(state) || state.version < STATE_VERSION)) {
-    UPDATE_STATE(7, state.config._reserved = 0; state.config.motor.backoff_ms = 200; state.config.motor.stall_percent = 180; )
+    UPDATE_STATE(7, state.config._reserved = 0; state.config.motor.backoff_ms = BACKOFF_MS_DEFAULT; state.config.motor.stall_ms = STALL_MS_DEFAULT; )
     r = sizeof(state);
   }
 
@@ -81,7 +84,7 @@ Trv::Trv() {
     globalState.config.sleep_time = 20;
     globalState.config.resolution = 3;
     globalState.config._reserved = 0;
-    globalState.config.motor = { .reversed = false, .backoff_ms = 200, .stall_percent = 180 };
+    globalState.config.motor = { .reversed = false, .backoff_ms = BACKOFF_MS_DEFAULT, .stall_ms = STALL_MS_DEFAULT };
   } else {
     globalState.config = state.config;
   }
@@ -142,7 +145,7 @@ std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
     "\"resolution\":" << (0.5 / (float)(1 << s.config.resolution)) << ","
     "\"unpair\":false,"
     "\"backoff_ms\":" << s.config.motor.backoff_ms << ","
-    "\"stall_percent\":" << s.config.motor.stall_percent << ","
+    "\"stall_ms\":" << s.config.motor.stall_ms << ","
     //"\"motor_dc_milliohms\":" << s.config.motor.dc_milliohms << ","
     "\"motor_reversed\":" << (s.config.motor.reversed ? "true":"false") <<
     "}";
@@ -167,10 +170,13 @@ void Trv::resetValve() {
 
 void Trv::setMotorParameters(const motor_params_t& params) {
   if (params.reversed == true || params.reversed == false) {
-    globalState.config.motor.reversed = params.reversed;
+    if (globalState.config.motor.reversed != params.reversed) {
+      globalState.config.motor.reversed = params.reversed;
+      globalState.sensors.position = 50;  // We don't know what the valve position is after changing direction, so we leave the state indeterminate so the first call to setValvePosition does something
+    }
   }
-  if (params.stall_percent > 100) {
-    globalState.config.motor.stall_percent = params.stall_percent;
+  if (params.stall_ms > 0) {
+    globalState.config.motor.stall_ms = params.stall_ms;
   }
   if (params.backoff_ms >= 0) {
     globalState.config.motor.backoff_ms = params.backoff_ms;
