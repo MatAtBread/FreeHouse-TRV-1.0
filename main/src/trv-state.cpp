@@ -163,7 +163,6 @@ void Trv::saveState() {
 }
 
 void Trv::resetValve() {
-  motor->resetValve();
   globalState.sensors.position = 50;  // We don't know what the valve position is after a hard reset, so we leave the state indeterminate so the first call to setValvePosition does something
   setSystemMode(globalState.config.system_mode);
 }

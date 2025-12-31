@@ -4,10 +4,10 @@
 #include "../trv.h"
 #include "pins.h"
 
-#if BUILD_FREEHOUSE_MODEL == TRV3
-#define maxMotorTime 12000
-#else
+#if BUILD_FREEHOUSE_MODEL == TRV1
 #define maxMotorTime 24000
+#else
+#define maxMotorTime 12000
 #endif
 
 #define minMotorTime (maxMotorTime / 25)
@@ -19,12 +19,17 @@
   In-rush Vshunt on *reversal* is 0.38v, from stationary is 0.21v
 */
 
+static RTC_DATA_ATTR int trackRatio; // Initialised to 0 on boot, except for deep-sleep wake
+
 MotorController::MotorController(BatteryMonitor* battery, uint8_t& current, motor_params_t& params) : battery(battery), current(current), params(params) {
   target = current;
   GPIO::pinMode(NSLEEP, OUTPUT);
   GPIO::pinMode(MOTOR, OUTPUT);
   setDirection(0);
-}
+  if (trackRatio == 0) {
+    calibrate();
+    ESP_LOGI(TAG, "MotorController::MotorController initialized, trackRatio=%d", trackRatio);}
+  }
 
 int MotorController::getDirection() {
   if (GPIO::digitalRead(NSLEEP) == false) return 0;
@@ -67,9 +72,6 @@ void MotorController::setValvePosition(int pos) {
 
 uint8_t MotorController::getValvePosition() {
   return current;
-}
-
-void MotorController::resetValve() {
 }
 
 void MotorController::calibrate() {
@@ -116,7 +118,6 @@ class MovingAverage {
     }
 };
 
-static RTC_DATA_ATTR int trackRatio = 0;
 // The task depends on the members target & getDirection(), which is why we start it when any of them change
 void MotorController::task() {
   // Get a stable battery level

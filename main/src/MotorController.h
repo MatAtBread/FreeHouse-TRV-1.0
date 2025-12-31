@@ -27,7 +27,6 @@ class MotorController: public WithTask {
   void setValvePosition(int pos /* 0-100, -1 means "current position - stop the motor now" */);
   uint8_t getValvePosition();
   void calibrate();
-  void resetValve();
 };
 
 #endif
