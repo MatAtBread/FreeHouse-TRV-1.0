@@ -138,7 +138,7 @@ std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
     "\"battery_mv\":" << (int)s.sensors.battery_raw << ","
     "\"is_charging\":" << (s.sensors.is_charging ? "true" : "false") << ","
     "\"position\":" << (int)s.sensors.position << ","
-    "\"motor\":" << MotorController::lastStatus << ","
+    "\"motor\":\"" << MotorController::lastStatus << "\","
     "\"current_heating_setpoint\":" << s.config.current_heating_setpoint << ","
     "\"local_temperature_calibration\":" << s.config.local_temperature_calibration << ","
     "\"system_mode\":\"" << systemModes[s.config.system_mode] << "\","
