@@ -37,7 +37,10 @@ void WithTask::start() {
   running = NULL;
   ESP_LOGI(TAG, "WithTask finished %s %d", taskInfo.pcTaskName, numRunning);
   numRunning--;
+  spinlock_acquire(&spinlock, SPINLOCK_WAIT_FOREVER);
   if (numRunning == 0 && anyTasks) {
     xEventGroupSetBits(anyTasks, WITHTASK_FINISHED);
+    anyTasks = NULL;
   }
+  spinlock_release(&spinlock);
 }

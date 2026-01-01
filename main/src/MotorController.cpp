@@ -202,7 +202,7 @@ void MotorController::task() {
             currentRatio /= 2;
             break;
           } else {
-            lastStatus = "stalled";
+            lastStatus = target == 100 ? "opened" : target == 0 ? "closed" : "stalled";
             current = target;
             break;
           }
