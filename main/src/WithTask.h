@@ -1,32 +1,25 @@
 #ifndef WithTask_h
 #define WithTask_h
 
-#define StartTask(Cl) (running \
-  ? (_log("WithTask "#Cl" running"), running) \
-  : (running = (_log("WithTask "#Cl" starting"), xTaskCreate((TaskFunction_t)&taskWrapper<Cl>, #Cl, 8192, this, 1, nullptr) == pdPASS \
-    ? ((numRunning+=1),xEventGroupClearBits(anyTasks, WITHTASK_FINISHED),xEventGroupCreate()) \
-    : NULL)))
+#include <freertos/FreeRTOS.h>
+#include <freertos/event_groups.h>
+#include <freertos/task.h>
+
+#define StartTask(Cl) (this->startTask(#Cl))
 
 #define WITHTASK_FINISHED (1 << 0)
 
-#include <freertos/FreeRTOS.h>
-
-template <typename C>
-void taskWrapper(C* p) {
-  p->start();
-  vTaskDelete(NULL);
-}
-
 enum WithTaskState {
   NOT_RUNNING = 1, // Either not yet started, or destroyed
-  TIMEOUT,        // The wait timed out
-  FINISHED        // The task finished
+  TIMEOUT,         // The wait timed out
+  FINISHED         // The task finished
 };
 
 class WithTask {
-  template <typename C> friend void taskWrapper(C* p);
 private:
   void start();
+  static void taskRunner(void *p);
+
 protected:
   EventGroupHandle_t running;
   static EventGroupHandle_t anyTasks;
@@ -39,8 +32,15 @@ public:
   virtual ~WithTask();
 
   WithTaskState wait(TickType_t delay = portMAX_DELAY) {
-    return running ? xEventGroupWaitBits(running, WITHTASK_FINISHED, pdFALSE, pdTRUE, delay) & WITHTASK_FINISHED ? ((running = NULL),FINISHED) : TIMEOUT : NOT_RUNNING;
+    return running ? xEventGroupWaitBits(running, WITHTASK_FINISHED, pdFALSE,
+                                         pdTRUE, delay) &
+                             WITHTASK_FINISHED
+                         ? ((running = NULL), FINISHED)
+                         : TIMEOUT
+                   : NOT_RUNNING;
   }
+
+  EventGroupHandle_t startTask(const char *name, int stackSize = 8192);
 
   // Pure virtual function to be implemented by derived classes
   virtual void task() = 0;
