@@ -11,7 +11,7 @@
 
 #define STATE_VERSION 8L
 
-#define STALL_MS_DEFAULT 1000
+#define STALL_MS_DEFAULT 100
 #define BACKOFF_MS_DEFAULT 100
 
 extern const char *systemModes[];
