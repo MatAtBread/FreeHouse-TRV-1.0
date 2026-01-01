@@ -193,7 +193,7 @@ void MotorController::task() {
           stallStart = now;
         else if (now - stallStart > params.stall_ms) {
           // Motor has stalled
-          if (runTime <= minMotorTime + 250) {
+          if (runTime <= minMotorTime + params.stall_ms + 100) {
             lastStatus = "stuck";
             // Reduce ratio since stuck motors typically draw excess current
             currentRatio /= 2;
