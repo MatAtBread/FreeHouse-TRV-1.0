@@ -20,9 +20,12 @@
 */
 
 static RTC_DATA_ATTR int trackRatio; // Initialised to 0 on boot, except for deep-sleep wake
-const char* MotorController::lastStatus = "idle";
+const RTC_DATA_ATTR char* MotorController::lastStatus = "idle";
 
 MotorController::MotorController(BatteryMonitor* battery, uint8_t& current, motor_params_t& params) : battery(battery), current(current), params(params) {
+  if (lastStatus == NULL) {
+    lastStatus = "idle";
+  }
   target = current;
   GPIO::pinMode(NSLEEP, OUTPUT);
   GPIO::pinMode(MOTOR, OUTPUT);
