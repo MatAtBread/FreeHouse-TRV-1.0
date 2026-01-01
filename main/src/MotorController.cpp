@@ -11,7 +11,7 @@
 #endif
 
 #define minMotorTime (maxMotorTime / 25)
-#define peakLoPercent 96
+#define peakLoPercent 92
 #define peakHiPercent 102
 
 /* In testing:
@@ -20,6 +20,7 @@
 */
 
 static RTC_DATA_ATTR int trackRatio; // Initialised to 0 on boot, except for deep-sleep wake
+const char* MotorController::lastStatus = "idle";
 
 MotorController::MotorController(BatteryMonitor* battery, uint8_t& current, motor_params_t& params) : battery(battery), current(current), params(params) {
   target = current;
@@ -131,7 +132,7 @@ void MotorController::task() {
   }
 
   unsigned int startTime = 0;
-  const char* state = "start";
+  lastStatus = "start";
 
   int batt = noloadBatt;
   int stallStart = 0;
@@ -151,13 +152,19 @@ void MotorController::task() {
       setDirection(0);
       delay(100);
       setDirection(dir);
+      currentRatio /= 2;
       startTime = now;
-      state = "seeking";
+      lastStatus = "seeking";
       stallStart = 0;
     }
-    auto pos = 1 + (runTime * 98 / maxMotorTime);
-    if (dir < 0) pos = 100 - pos;
-    current = pos;
+
+    // This should really be based on the current position when we started, not the whole time=out period
+    // We should probably keep a running avereage of the actual typical run-time too
+    if (dir < 0) {
+      current = 99 - (runTime * 98 / maxMotorTime);
+    } else {
+      current = 1 + (runTime * 98 / maxMotorTime);
+    }
 
     int spotBatt = battery->getValue();
     batt = battAvg.add(spotBatt);
@@ -167,7 +174,7 @@ void MotorController::task() {
 
     if (runTime > maxMotorTime) {
       // Motor has timed-out
-      state = "timed-out";
+      lastStatus = "timed-out";
       target = current;
       break;
     }
@@ -186,9 +193,16 @@ void MotorController::task() {
           stallStart = now;
         else if (now - stallStart > params.stall_ms) {
           // Motor has stalled
-          state = "stalled";
-          current = target;
-          break;
+          if (runTime <= minMotorTime + 250) {
+            lastStatus = "stuck";
+            // Reduce ratio since stuck motors typically draw excess current
+            currentRatio /= 2;
+            break;
+          } else {
+            lastStatus = "stalled";
+            current = target;
+            break;
+          }
         }
       } else if (currentRatio < minRatio) {
         // Fall in current
@@ -215,7 +229,7 @@ void MotorController::task() {
       ESP_LOGI(TAG, "%s %3d", bar, stallStart ? (now - stallStart) : -1);
 
       ESP_LOGI(TAG, "MotorController %10s: dir: %2d, noloadBatt %4dmV, batt %4dmV, ΔV %3dmV, Vpeak %3dmV, target %3d, current %3d, runTime: %5lu, timeout: %5u, stallStart %4d    %s",
-              state,
+              lastStatus,
               getDirection(),
               noloadBatt, batt,
               shuntMilliVolts,
@@ -223,7 +237,7 @@ void MotorController::task() {
               target, current,
               runTime, maxMotorTime,
               now - stallStart,
-              strcmp(state, "seeking") ? "" : "\x1b[1A\r");
+              strcmp(lastStatus, "seeking") ? "" : "\x1b[1A\r");
     }
   }
   // Back-off
@@ -238,7 +252,7 @@ void MotorController::task() {
   }
   setDirection(0);
   ESP_LOGI(TAG, "MotorController %10s: dir: %2d, noloadBatt %4dmV, batt %4dmV, ΔV %3dmV, Vpeak %3dmV, target %3d, current %3d, runTime: %5lu, timeout: %5u, stallStart %4d    ",
-            state,
+            lastStatus,
             getDirection(),
             noloadBatt, batt,
             noloadBatt - batt,

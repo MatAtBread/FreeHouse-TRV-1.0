@@ -138,6 +138,7 @@ std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
     "\"battery_mv\":" << (int)s.sensors.battery_raw << ","
     "\"is_charging\":" << (s.sensors.is_charging ? "true" : "false") << ","
     "\"position\":" << (int)s.sensors.position << ","
+    "\"motor\":" << MotorController::lastStatus << ","
     "\"current_heating_setpoint\":" << s.config.current_heating_setpoint << ","
     "\"local_temperature_calibration\":" << s.config.local_temperature_calibration << ","
     "\"system_mode\":\"" << systemModes[s.config.system_mode] << "\","
@@ -146,7 +147,6 @@ std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
     "\"unpair\":false,"
     "\"backoff_ms\":" << s.config.motor.backoff_ms << ","
     "\"stall_ms\":" << s.config.motor.stall_ms << ","
-    //"\"motor_dc_milliohms\":" << s.config.motor.dc_milliohms << ","
     "\"motor_reversed\":" << (s.config.motor.reversed ? "true":"false") <<
     "}";
 

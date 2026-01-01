@@ -256,7 +256,7 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t *req) {
         "<input name='system_mode' onclick='processMessage(this,undefined,\"" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF] << "\")' type='radio' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF ? checked : "") << "/>" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF] << "\n"
         "<input name='system_mode' onclick='processMessage(this,undefined,\"" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP] << "\")' type='radio' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP ? checked : "") << "/>" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP] << "\n"
         "<table>\n"
-          "<tr><td>valve</td><td>" << (int)state.sensors.position << "</td></tr>\n"
+          "<tr><td>valve</td><td>" << (int)state.sensors.position << " (" << MotorController::lastStatus << ")</td></tr>\n"
           "<tr><td>syetem mode</td><td>" << systemModes[state.config.system_mode] << '(' << state.config.system_mode << ")</td></tr>\n"
           "<tr><td>local_temperature</td><td>" << state.sensors.local_temperature << " °C</td></tr>\n"
           "<tr><td>sensor_temperature</td><td>" << state.sensors.sensor_temperature << " °C</td></tr>\n"
