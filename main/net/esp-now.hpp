@@ -1,23 +1,23 @@
 #include "esp_now.h"
-
-#include "../trv.h"
 #include "../src/trv-state.h"
+#include "../trv.h"
 
 class EspNet {
-    protected:
-        Trv* trv;
-        uint8_t *joinPhrase = NULL;
-        size_t joinPhraseLen = 0;
-        void pair_with_hub();
+protected:
+  Trv *trv;
+  uint8_t *joinPhrase = NULL;
+  size_t joinPhraseLen = 0;
+  void pair_with_hub();
+  EventGroupHandle_t sendEvent;
 
-    public:
-        EspNet(Trv* trv);
-        ~EspNet();
-        void sendStateToHub(const trv_state_t &);
-        void checkMessages();
-        static void unpair();
+public:
+  EspNet(Trv *trv);
+  ~EspNet();
+  void sendStateToHub(const trv_state_t &);
+  void checkMessages();
+  static void unpair();
 
-        // Internal referenced from statics
-        void data_receive_callback(const esp_now_recv_info_t * esp_now_info, const uint8_t *data, int data_len);
-        void data_send_callback(const uint8_t *mac_addr, esp_now_send_status_t status);
+  // Internal referenced from statics
+  void data_receive_callback(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len);
+  void data_send_callback(const uint8_t *mac_addr, esp_now_send_status_t status);
 };
