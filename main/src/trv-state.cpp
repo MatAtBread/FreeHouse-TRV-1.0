@@ -163,7 +163,6 @@ void Trv::saveState() {
 }
 
 void Trv::resetValve() {
-  globalState.sensors.position = 50;  // We don't know what the valve position is after a hard reset, so we leave the state indeterminate so the first call to setValvePosition does something
   setSystemMode(globalState.config.system_mode);
 }
 
@@ -171,7 +170,9 @@ void Trv::setMotorParameters(const motor_params_t& params) {
   if (params.reversed == true || params.reversed == false) {
     if (globalState.config.motor.reversed != params.reversed) {
       globalState.config.motor.reversed = params.reversed;
-      globalState.sensors.position = 50;  // We don't know what the valve position is after changing direction, so we leave the state indeterminate so the first call to setValvePosition does something
+      const auto pos = motor->getValvePosition();
+      globalState.sensors.position = 50; // Invalidate position
+      motor->setValvePosition(pos ? 100 : 0);  // Re-apply current position to change direction
     }
   }
   if (params.stall_ms > 0) {

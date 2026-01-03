@@ -182,14 +182,14 @@ extern "C" void app_main() {
       EspNet net(trv);
       net.sendStateToHub(trv->getState(false));
     } else {
+      const auto config = trv->getState(true).config;
       if (resetCause != ESP_RST_DEEPSLEEP) {
-        resetCause =
-            ESP_RST_DEEPSLEEP; // To suppress further reset in no-sleep mode
-        trv->resetValve();
+        resetCause = ESP_RST_DEEPSLEEP; // To suppress further reset in no-sleep mode
+        trv->setSystemMode(config.system_mode);
       }
 
       checkForMessages(trv);
-      dreamSecs = trv->getState(true).config.sleep_time;
+      dreamSecs = config.sleep_time;
     }
   }
 
