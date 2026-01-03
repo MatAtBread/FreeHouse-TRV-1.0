@@ -20,8 +20,7 @@
   is 0.38v, from stationary is 0.21v
 */
 
-static RTC_DATA_ATTR int
-    trackRatio; // Initialised to 0 on boot, except for deep-sleep wake
+static RTC_DATA_ATTR int trackRatio; // Initialised to 0 on boot, except for deep-sleep wake
 const RTC_DATA_ATTR char *MotorController::lastStatus = "idle";
 
 MotorController::MotorController(BatteryMonitor *battery, uint8_t &current,
@@ -99,7 +98,7 @@ void MotorController::calibrate() {
   wait();
 }
 
-static char bar[200];
+static char bar[100];
 static void charChart(int b, char c) {
   if (b > sizeof(bar) - 3)
     b = sizeof(bar) - 2;
@@ -142,8 +141,7 @@ void MotorController::task() {
   if (noloadBatt < 3000) {
     ESP_LOGW(TAG, "MotorController: noloadBatt %f too low, stop",
              noloadBatt / 1000.0);
-    target = 50;
-    current = 50;
+    lastStatus = "low-battery";
     return;
   }
 
@@ -239,11 +237,11 @@ void MotorController::task() {
     // Longging only
     if (true) {
       memset(bar, ' ', sizeof(bar) - 1);
-      charChart((noloadBatt - spotBatt) / 3, '=');
+      charChart(sizeof(bar) * (noloadBatt - spotBatt) / 600, '=');
 
-      charChart(minRatio / 3, '<');
-      charChart(maxRatio / 3, '>');
-      charChart(currentRatio / 3, '|');
+      charChart(sizeof(bar) * minRatio / 600, '<');
+      charChart(sizeof(bar) * maxRatio / 600, '>');
+      charChart(sizeof(bar) * currentRatio / 600, '|');
       bar[sizeof(bar) - 1] = 0;
 
       ESP_LOGI(TAG, "%s %3d", bar, stallStart ? (now - stallStart) : -1);
@@ -273,8 +271,8 @@ void MotorController::task() {
   ESP_LOGI(TAG,
            "MotorController %10s: dir: %2d, noloadBatt %4dmV, batt %4dmV, ΔV "
            "%3dmV, Vpeak %3dmV, target %3d, current %3d, runTime: %5lu, "
-           "timeout: %5u, stallStart %4d    ",
+           "timeout: %5u, stallStart %4d trackRatio %3d",
            lastStatus, getDirection(), noloadBatt, batt, noloadBatt - batt,
            trackRatio, target, current, now - startTime, maxMotorTime,
-           stallStart);
+           stallStart, trackRatio);
 }

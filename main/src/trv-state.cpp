@@ -284,4 +284,10 @@ void Trv::calibrate() {
   globalState.config.system_mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP;
   motor->calibrate();
   setSystemMode(mode);
+  ESP_LOGI(TAG,"Calibrated state: '%s' mqtt://%s:%d, wifi %s >> %s",
+    globalState.config.mqttConfig.device_name,
+    globalState.config.mqttConfig.mqtt_server,
+    globalState.config.mqttConfig.mqtt_port,
+    globalState.config.mqttConfig.wifi_ssid,
+    asJson(globalState).c_str());
 }
