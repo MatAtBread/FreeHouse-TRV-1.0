@@ -76,6 +76,7 @@ protected:
   void requestUpdate(const char *otaUrl, const char *otaSsid, const char *otaPwd);
   void doUnpair();
   void doUpdate();
+  void checkAutoState();
 
 public:
   Trv();
@@ -87,7 +88,6 @@ public:
   void setSystemMode(esp_zb_zcl_thermostat_system_mode_t mode);
   void setTempCalibration(float temp);
   void setTempResolution(uint8_t res);
-  void checkAutoState();
   bool flatBattery();
   bool is_charging();
   void setNetMode(net_mode_t mode, trv_mqtt_t *mqtt = NULL);

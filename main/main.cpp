@@ -54,10 +54,6 @@ void checkForMessages(Trv *trv) {
   //   break;
   // }
 
-  int checkEvery =
-      60 / trv->getState(true)
-               .config.sleep_time; // Check every 60 seconds, which is (usually)
-                                   // inferred from the config sleep_time
   net.checkMessages();
   // Note, if there were any messages that confifgured the heat settings,
   // checkAutoState wuill have been called as part of their processing. So here,
@@ -66,9 +62,13 @@ void checkForMessages(Trv *trv) {
   // excessive checking and the valve moving too often, and to give the device
   // temperature time to settle after a change (which drives up the internal
   // temperature and causes resonance)
+  // Check every 60 seconds, which is (usually) inferred from the config sleep_time
+  const auto config = trv->getState(true).config;
+  int checkEvery = 60 / config.sleep_time;
   ESP_LOGI(TAG, "checkForMessages %d / %d", messgageChecks, checkEvery);
   if (messgageChecks >= checkEvery) {
-    trv->checkAutoState();
+    trv->setSystemMode(config.system_mode);
+    // trv->checkAutoState();
     messgageChecks = 0;
   } else {
     messgageChecks += 1;

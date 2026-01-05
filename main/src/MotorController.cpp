@@ -4,6 +4,8 @@
 #include "../trv.h"
 #include "pins.h"
 
+#define BAR_SCALE 1000
+
 #if BUILD_FREEHOUSE_MODEL == TRV1
 #define maxMotorTime 24000
 #else
@@ -13,7 +15,7 @@
 #define minMotorTime (maxMotorTime / 25)
 #define peakLoPercent 92
 #define peakHiPercent 102
-
+#define peakAvgPercent 80
 /* In testing:
   typical Vshunt at full stall in 0.23v (batt=4110mv, R=0.66ohms), making
   I=0.338mA and Rmotor=12.16-Rshunt, or 11.48ohms In-rush Vshunt on *reversal*
@@ -66,6 +68,7 @@ void MotorController::setDirection(int dir) {
 }
 
 void MotorController::setValvePosition(int pos) {
+  ESP_LOGI(TAG, "MotorController::setValvePosition(%d) target=%d current=%d", pos, target, current);
   if (pos == -1) {
     target = current;
     setDirection(0);
@@ -76,10 +79,11 @@ void MotorController::setValvePosition(int pos) {
              pos);
     return;
   }
-  ESP_LOGI(TAG, "MotorController::setValvePosition %d %d", pos, target);
-  // Let task pick up the change (we could wait until the next dreamtime)
-  target = pos;
-  StartTask(MotorController);
+  if (pos != current) {
+    // Let task pick up the change (we could wait until the next dreamtime)
+    target = pos;
+    StartTask(MotorController);
+  }
 }
 
 uint8_t MotorController::getValvePosition() { return current; }
@@ -94,7 +98,7 @@ void MotorController::calibrate() {
   wait();
 }
 
-static char bar[100];
+static char bar[160];
 static void charChart(int b, char c) {
   if (b > sizeof(bar) - 3)
     b = sizeof(bar) - 2;
@@ -233,11 +237,11 @@ void MotorController::task() {
     // Longging only
     if (true) {
       memset(bar, ' ', sizeof(bar) - 1);
-      charChart(sizeof(bar) * (noloadBatt - spotBatt) / 600, '=');
+      charChart(sizeof(bar) * (noloadBatt - spotBatt) / BAR_SCALE, '=');
 
-      charChart(sizeof(bar) * minRatio / 600, '<');
-      charChart(sizeof(bar) * maxRatio / 600, '>');
-      charChart(sizeof(bar) * currentRatio / 600, '|');
+      charChart(sizeof(bar) * minRatio / BAR_SCALE, '<');
+      charChart(sizeof(bar) * maxRatio / BAR_SCALE, '>');
+      charChart(sizeof(bar) * currentRatio / BAR_SCALE, '|');
       bar[sizeof(bar) - 1] = 0;
 
       ESP_LOGI(TAG, "%s %3d", bar, stallStart ? (now - stallStart) : -1);
@@ -261,7 +265,7 @@ void MotorController::task() {
     delay(params.backoff_ms);
     // Update trackRatio to be at the lower range of the average of the initial
     // and current values
-    trackRatio = ((trackRatio + currentRatio) * peakLoPercent) / 200;
+    trackRatio = ((trackRatio + currentRatio) * peakAvgPercent) / 200;
   }
   setDirection(0);
   ESP_LOGI(TAG,
