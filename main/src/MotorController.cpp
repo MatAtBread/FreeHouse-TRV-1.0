@@ -166,7 +166,7 @@ void MotorController::task() {
       setDirection(0);
       delay(100);
       setDirection(dir);
-      currentRatio /= 2;
+      currentRatio = currentRatio * peakAvgPercent / 100;
       startTime = now;
       lastStatus = "seeking";
       stallStart = 0;
@@ -212,15 +212,14 @@ void MotorController::task() {
           if (runTime <= minMotorTime + params.stall_ms + 100) {
             lastStatus = "stuck";
             // Reduce ratio since stuck motors typically draw excess current
-            currentRatio /= 2;
-            break;
+            currentRatio = currentRatio * peakAvgPercent / 100;
           } else {
             lastStatus = target == 100 ? "opened"
                          : target == 0 ? "closed"
                                        : "stalled";
             current = target;
-            break;
           }
+          break;
         }
       } else if (currentRatio < minRatio) {
         // Fall in current

@@ -187,6 +187,12 @@ extern "C" void app_main() {
         resetCause = ESP_RST_DEEPSLEEP; // To suppress further reset in no-sleep mode
         trv->setSystemMode(config.system_mode);
       }
+      esp_pm_config_t pm_config = {
+          .max_freq_mhz = 40,  // Your desired peak speed
+          .min_freq_mhz = 40,  // Your desired floor speed
+          .light_sleep_enable = false // Keep false if you want manual control
+      };
+      // esp_pm_configure(&pm_config);
 
       checkForMessages(trv);
       dreamSecs = config.sleep_time;
