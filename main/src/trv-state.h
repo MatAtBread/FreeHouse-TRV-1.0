@@ -69,6 +69,7 @@ protected:
   MotorController *motor;
   BatteryMonitor *battery;
   TrvFS *fs;
+  bool configDirty;
 
   std::string otaUrl;
   std::string otaSsid;
@@ -91,6 +92,7 @@ public:
   bool flatBattery();
   bool is_charging();
   void setNetMode(net_mode_t mode, trv_mqtt_t *mqtt = NULL);
+  void setPassKey(const uint8_t *key);
   void setSleepTime(int seconds);
   void setMotorParameters(const motor_params_t &params);
   void calibrate();

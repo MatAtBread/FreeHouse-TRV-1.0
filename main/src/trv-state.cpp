@@ -16,7 +16,8 @@
 
 extern const char *systemModes[];
 
-static RTC_DATA_ATTR trv_state_t globalState = {
+static RTC_DATA_ATTR trv_state_t globalState;
+const trv_state_t defaultState = {
   .version = STATE_VERSION,
   .sensors = {
     .local_temperature = 20.0,
@@ -57,42 +58,47 @@ uint32_t Trv::stateVersion() { return globalState.version; }
   if (state.version == number) { \
     state.version +=1; \
     default_expr; \
+    configDirty = true; \
     ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);\
   }
 
 
 Trv::Trv() {
+  bool mustCalibrate = false;
+  configDirty = false;
   fs = new TrvFS();
 
-  trv_state_t state;
-  // Try loading the config from the filesystem
-  __SIZE_TYPE__ r = fs->read("/trv/state", &state, sizeof(state));
-  ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
-  if (r && (r <= sizeof(state) || state.version < STATE_VERSION)) {
-    UPDATE_STATE(7, state.config._reserved = 0; state.config.motor.backoff_ms = BACKOFF_MS_DEFAULT; state.config.motor.stall_ms = STALL_MS_DEFAULT; )
-    r = sizeof(state);
-  }
-
-  if (r != sizeof (state) || state.version != STATE_VERSION) {
-    ESP_LOGI(TAG, "Default state, version %lu != %lu", state.version, STATE_VERSION);
-    // By default we stay in heat mode so that when assembling the hardware, the plunger stays in place
-    globalState.config.system_mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP;
-    globalState.config.netMode = NET_MODE_ESP_NOW;
-    globalState.config.mqttConfig.mqtt_port = 1883;
-    globalState.config.local_temperature_calibration = 0.0;
-    globalState.config.current_heating_setpoint = 21;
-    globalState.config.sleep_time = 20;
-    globalState.config.resolution = 3;
-    globalState.config._reserved = 0;
-    globalState.config.motor = { .reversed = false, .backoff_ms = BACKOFF_MS_DEFAULT, .stall_ms = STALL_MS_DEFAULT };
+  // On timer wake (ESP-NOW check), trust the RTC state if version matches
+  if (esp_reset_reason() == ESP_RST_DEEPSLEEP && globalState.version == STATE_VERSION) {
+      // RTC state is valid, skip FS read
   } else {
-    globalState.config = state.config;
+    trv_state_t state;
+    // Try loading the config from the filesystem
+    __SIZE_TYPE__ r = fs->read("/trv/state", &state, sizeof(state));
+    ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
+    if (r && (r <= sizeof(state) || state.version < STATE_VERSION)) {
+        UPDATE_STATE(7, state.config._reserved = 0; state.config.motor.backoff_ms = BACKOFF_MS_DEFAULT; state.config.motor.stall_ms = STALL_MS_DEFAULT; )
+        r = sizeof(state);
+    }
+
+    if (r != sizeof (state) || state.version != STATE_VERSION) {
+        ESP_LOGI(TAG, "Default state, version %lu != %lu", state.version, STATE_VERSION);
+        globalState = defaultState;
+    } else {
+        globalState = state;
+        globalState.sensors = defaultState.sensors;
+    }
+    mustCalibrate = true;
   }
 
   // Get the sensor values
   tempSensor = new DallasOneWire(globalState.sensors.sensor_temperature);
   battery = new BatteryMonitor();
   motor = new MotorController(battery, globalState.sensors.position, globalState.config.motor);
+  if (mustCalibrate) {
+      motor->calibrate();
+      globalState.sensors.position = motor->getValvePosition();
+  }
   getState(true); // Lazily update temp
   ESP_LOGI(TAG,"Initial state: '%s' mqtt://%s:%d, wifi %s >> %s",
     globalState.config.mqttConfig.device_name,
@@ -117,6 +123,7 @@ void Trv::setSleepTime(int seconds) {
     ESP_LOGW(TAG, "Invalid sleep time %d, must be between 0 and 300", seconds);
     return;
   }
+  configDirty = configDirty || globalState.config.sleep_time != seconds;
   globalState.config.sleep_time = seconds;
   saveState();
   ESP_LOGI(TAG, "Set sleep time to %d seconds", seconds);
@@ -158,7 +165,9 @@ void Trv::doUnpair() {
 }
 
 void Trv::saveState() {
+  if (!configDirty) return;
   auto saved = fs->write("/trv/state", &globalState, sizeof(globalState));
+  configDirty = false;
   ESP_LOGI(TAG, "saveState: %d", saved);
 }
 
@@ -176,10 +185,16 @@ void Trv::setMotorParameters(const motor_params_t& params) {
     }
   }
   if (params.stall_ms > 0) {
-    globalState.config.motor.stall_ms = params.stall_ms;
+    if (globalState.config.motor.stall_ms != params.stall_ms) {
+        globalState.config.motor.stall_ms = params.stall_ms;
+        configDirty = true;
+    }
   }
   if (params.backoff_ms >= 0) {
-    globalState.config.motor.backoff_ms = params.backoff_ms;
+    if (globalState.config.motor.backoff_ms != params.backoff_ms) {
+        globalState.config.motor.backoff_ms = params.backoff_ms;
+        configDirty = true;
+    }
   }
   saveState();
 }
@@ -209,13 +224,31 @@ const trv_state_t& Trv::getState(bool fast) {
 }
 
 void Trv::setNetMode(net_mode_t mode, trv_mqtt_t *mqtt){
-  globalState.config.netMode = mode;
-  if (mqtt) {
-    memcpy(&globalState.config.mqttConfig, mqtt, sizeof(trv_mqtt_t));
-    ESP_LOGI(TAG, "Enable mqtt %s, %s, %s, %s:%d", globalState.config.mqttConfig.device_name, globalState.config.mqttConfig.wifi_ssid, globalState.config.mqttConfig.wifi_pwd, globalState.config.mqttConfig.mqtt_server, globalState.config.mqttConfig.mqtt_port);
+  bool changed = false;
+  if (globalState.config.netMode != mode) {
+      globalState.config.netMode = mode;
+      changed = true;
   }
-  saveState();
-  // We should probably do a restart to make sure there are no clashes with other operations
+  if (mqtt) {
+    if (memcmp(&globalState.config.mqttConfig, mqtt, sizeof(trv_mqtt_t)) != 0) {
+        memcpy(&globalState.config.mqttConfig, mqtt, sizeof(trv_mqtt_t));
+        changed = true;
+        ESP_LOGI(TAG, "Enable mqtt %s, %s, %s, %s:%d", globalState.config.mqttConfig.device_name, globalState.config.mqttConfig.wifi_ssid, globalState.config.mqttConfig.wifi_pwd, globalState.config.mqttConfig.mqtt_server, globalState.config.mqttConfig.mqtt_port);
+    }
+  }
+  if (changed) {
+      configDirty = true;
+      saveState();
+      // We should probably do a restart to make sure there are no clashes with other operations
+  }
+}
+
+void Trv::setPassKey(const uint8_t *key) {
+  if (memcmp(globalState.config.passKey, key, sizeof(globalState.config.passKey)) != 0) {
+      memcpy(globalState.config.passKey, key, sizeof(globalState.config.passKey));
+      configDirty = true;
+      saveState();
+  }
 }
 
 bool Trv::flatBattery() {
@@ -232,23 +265,31 @@ void Trv::setTempResolution(uint8_t res) {
     return;
 
   globalState.config.resolution = res;
+  configDirty = true;
   saveState();
   tempSensor->setResolution(globalState.config.resolution);
 }
 
 void Trv::setTempCalibration(float temp) {
+  if (globalState.config.local_temperature_calibration == temp) return;
   globalState.config.local_temperature_calibration = temp;
+  configDirty = true;
   saveState();
   checkAutoState();
 }
 
 void Trv::setHeatingSetpoint(float temp) {
+  if (globalState.config.current_heating_setpoint == temp) return;
   globalState.config.current_heating_setpoint = temp;
+  configDirty = true;
   saveState();
   checkAutoState();
 }
 
 void Trv::setSystemMode(esp_zb_zcl_thermostat_system_mode_t mode) {
+  if (globalState.config.system_mode != mode) {
+      configDirty = true;
+  }
   if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF) {
     globalState.config.system_mode = mode;
     saveState();

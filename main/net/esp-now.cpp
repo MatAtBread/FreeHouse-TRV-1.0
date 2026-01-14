@@ -14,6 +14,7 @@
 #define PAIR_DELIM "\x1D"
 #define MACSTR "%02X:%02X:%02X:%02X:%02X:%02X"
 #define MAC2STR(mac) mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
+#define NOW_RESPONSE_TIME 20 // Was 50ms
 
 typedef uint8_t MACAddr[6];
 
@@ -27,7 +28,7 @@ typedef struct {
   esp_wifi_rxctrl_t rx;
 } pairing_info_t;
 
-static pairing_info_t pairInfo[20] = {{0}};
+static pairing_info_t pairInfo[20];
 static pairing_info_t *nextPair = NULL;
 
 esp_err_t add_peer(const uint8_t *mac, uint8_t channel) {
@@ -271,7 +272,7 @@ void EspNet::pair_with_hub() {
   for (uint8_t ch = country.schan; ch < country.schan + country.nchan; ch++) {
     set_channel(ch);
     esp_now_send(BROADCAST_ADDR, this->joinPhrase, this->joinPhraseLen);
-    delay(50); // Wait for responses
+    delay(NOW_RESPONSE_TIME); // Wait for responses
   }
   pairing_info_t *lastPair = nextPair;
   nextPair = NULL;
@@ -314,18 +315,20 @@ void EspNet::unpair() {
 }
 
 void EspNet::checkMessages() {
-  if (wifiChannel == 0) {
-    this->pair_with_hub();
-  } else {
-    ESP_LOGI(TAG, "Already paired with hub " MACSTR, MAC2STR(hub));
-    esp_wifi_set_channel(wifiChannel, WIFI_SECOND_CHAN_NONE);
-    // We send a PAIR here just to elicit any deferred messages
-    add_peer(hub, wifiChannel);
-    esp_now_send(hub, this->joinPhrase, this->joinPhraseLen);
-  }
-  delay(50); // Wait for responses
-  // If we were disconnected from the hub, try again (once)
-  if (wifiChannel == 0 || memcmp(hub, BROADCAST_ADDR, sizeof(hub)) == 0) {
-    pair_with_hub();
+  for (int retries = 0; retries < 2; retries++) {
+    if (wifiChannel == 0) {
+      this->pair_with_hub();
+    } else {
+      ESP_LOGI(TAG, "Already paired with hub " MACSTR, MAC2STR(hub));
+      esp_wifi_set_channel(wifiChannel, WIFI_SECOND_CHAN_NONE);
+      // We send a PAIR here just to elicit any deferred messages
+      add_peer(hub, wifiChannel);
+      esp_now_send(hub, this->joinPhrase, this->joinPhraseLen);
+    }
+    delay(NOW_RESPONSE_TIME); // Wait for responses
+    // If we were disconnected from the hub, try again (once)
+    if (!(wifiChannel == 0 || memcmp(hub, BROADCAST_ADDR, sizeof(hub)) == 0)) {
+      break;
+    }
   }
 }

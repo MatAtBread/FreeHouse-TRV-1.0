@@ -119,9 +119,9 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t *req) {
   } else if (startsWith(url, "/set-passphrase/")) {
     char passphrase[64];
     unencode(passphrase, req->uri + 16, sizeof(passphrase));
-    auto passKey = trv->getState(false).config.passKey;
-      if (strlen(passphrase) && get_key_for_passphrase(passphrase,(uint8_t *)passKey) == 0) {
-      trv->saveState();
+    uint8_t passKey[32]; // ENCRYPTION_KEY is 32 bytes
+    if (strlen(passphrase) && get_key_for_passphrase(passphrase, passKey) == 0) {
+      trv->setPassKey(passKey);
     }
   // } else if (startsWith(url, "/net-zigbee")) {
   //   trv->setNetMode(NET_MODE_ZIGBEE);
