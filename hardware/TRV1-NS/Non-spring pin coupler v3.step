@@ -9,8 +9,8 @@ FILE_DESCRIPTION(
 /* implementation_level */ '2;1');
 
 FILE_NAME(
-/* name */ 'Non-spring pin coupler v2.step',
-/* time_stamp */ '2026-01-10T18:28:04Z',
+/* name */ 'Non-spring pin coupler v3.step',
+/* time_stamp */ '2026-01-14T16:49:14Z',
 /* author */ (''),
 /* organization */ (''),
 /* preprocessor_version */ 'ST-DEVELOPER v20.1',
@@ -631,22 +631,23 @@ SOLID_ANGLE_UNIT()
 #579=SHAPE_REPRESENTATION('',(#358),#571);
 #580=PRODUCT_DEFINITION_CONTEXT('part definition',#585,'design');
 #581=PRODUCT_DEFINITION('Non-spring pin coupler',
-'Non-spring pin coupler v2',#582,#580);
+'Non-spring pin coupler v3',#582,#580);
 #582=PRODUCT_DEFINITION_FORMATION('',$,#587);
-#583=PRODUCT_RELATED_PRODUCT_CATEGORY('Non-spring pin coupler v2',
-'Non-spring pin coupler v2',(#587));
+#583=PRODUCT_RELATED_PRODUCT_CATEGORY('Non-spring pin coupler v3',
+'Non-spring pin coupler v3',(#587));
 #584=APPLICATION_PROTOCOL_DEFINITION('international standard',
 'automotive_design',2009,#585);
 #585=APPLICATION_CONTEXT(
 'Core Data for Automotive Mechanical Design Process');
 #586=PRODUCT_CONTEXT('part definition',#585,'mechanical');
-#587=PRODUCT('Non-spring pin coupler','Non-spring pin coupler v2',$,(#586));
+#587=PRODUCT('Non-spring pin coupler','Non-spring pin coupler v3',$,(#586));
 #588=PRESENTATION_STYLE_ASSIGNMENT((#589));
 #589=SURFACE_STYLE_USAGE(.BOTH.,#590);
 #590=SURFACE_SIDE_STYLE('',(#591));
 #591=SURFACE_STYLE_FILL_AREA(#592);
-#592=FILL_AREA_STYLE('Steel - Satin',(#593));
-#593=FILL_AREA_STYLE_COLOUR('Steel - Satin',#594);
-#594=COLOUR_RGB('Steel - Satin',0.627450980392157,0.627450980392157,0.627450980392157);
+#592=FILL_AREA_STYLE('Plastic - Glossy (Grey)',(#593));
+#593=FILL_AREA_STYLE_COLOUR('Plastic - Glossy (Grey)',#594);
+#594=COLOUR_RGB('Plastic - Glossy (Grey)',0.701960784313725,0.701960784313725,
+0.701960784313725);
 ENDSEC;
 END-ISO-10303-21;
