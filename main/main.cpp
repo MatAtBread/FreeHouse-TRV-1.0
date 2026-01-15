@@ -47,9 +47,11 @@ class TouchButton : public WithTask {
   TouchButton() : WithTask() {
     reset();
   }
-  TouchState wait() {
-    WithTask::wait();
-    return state;
+  bool pressed() {
+    ESP_LOGI(TAG, "Touch button (1) state %d running %p", state, running);
+    wait();
+    ESP_LOGI(TAG, "Touch button (2) state %d running %p", state, running);
+    return state == PRESSED;
   };
   void reset() {
     state = WAIT;
@@ -114,7 +116,6 @@ extern "C" void app_main() {
   ESP_LOGI(TAG, "Wake: %d reset: %d count: %d", wakeCause, resetCause,
            wakeCount);
 
-  if (resetCause != ESP_RST_DEEPSLEEP) {
       esp_err_t ret = nvs_flash_init();
       if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
           ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -122,7 +123,6 @@ extern "C" void app_main() {
         ret = nvs_flash_init();
       }
       ESP_ERROR_CHECK(ret);
-  }
 
   ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -138,7 +138,7 @@ extern "C" void app_main() {
   } else {
     TouchButton touchButton;
     ESP_LOGI(TAG, "Check touch button/device name");
-    if (!trv->deviceName()[0] || touchButton.wait() == PRESSED) {
+    if (!trv->deviceName()[0] || touchButton.pressed() == PRESSED) {
       if (resetCause == ESP_RST_DEEPSLEEP) {
          nvs_flash_init();
       }

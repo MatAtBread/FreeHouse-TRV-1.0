@@ -64,14 +64,15 @@ EventGroupHandle_t WithTask::startTask(const char *name, int stackSize) {
   }
 
   EventGroupHandle_t newGroup = xEventGroupCreate();
+  running = newGroup;
 
   if (xTaskCreate(taskRunner, name, stackSize, this, 1, nullptr) == pdPASS) {
-    running = newGroup;
     return running;
   } else {
     // Task creation failed, revert state
     if (newGroup)
       vEventGroupDelete(newGroup);
+    running = NULL;
 
     spinlock_acquire(&spinlock, SPINLOCK_WAIT_FOREVER);
     numRunning--;
