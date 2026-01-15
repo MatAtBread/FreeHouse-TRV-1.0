@@ -25,7 +25,7 @@ const trv_state_t defaultState = {
     .battery_raw = 3500,
     .battery_percent = 50,
     .is_charging = 0,
-    .position = 100,
+    .position = 50,
   },
   .config = {
     .current_heating_setpoint = 21.5,
@@ -109,6 +109,7 @@ Trv::Trv() {
 }
 
 Trv::~Trv() {
+  if (configDirty) saveState(); // Update NVS if necessary
   if (this->otaUrl.length()) {
     doUpdate();
   }
@@ -123,9 +124,10 @@ void Trv::setSleepTime(int seconds) {
     ESP_LOGW(TAG, "Invalid sleep time %d, must be between 0 and 300", seconds);
     return;
   }
-  configDirty = configDirty || globalState.config.sleep_time != seconds;
-  globalState.config.sleep_time = seconds;
-  saveState();
+  if (globalState.config.sleep_time != seconds) {
+    globalState.config.sleep_time = seconds;
+    configDirty = true;
+  }
   ESP_LOGI(TAG, "Set sleep time to %d seconds", seconds);
 }
 
@@ -165,9 +167,8 @@ void Trv::doUnpair() {
 }
 
 void Trv::saveState() {
-  if (!configDirty) return;
   auto saved = fs->write("/trv/state", &globalState, sizeof(globalState));
-  configDirty = false;
+  configDirty = !saved;
   ESP_LOGI(TAG, "saveState: %d", saved);
 }
 
@@ -196,7 +197,6 @@ void Trv::setMotorParameters(const motor_params_t& params) {
         configDirty = true;
     }
   }
-  saveState();
 }
 
 const trv_state_t& Trv::getState(bool fast) {
@@ -238,7 +238,6 @@ void Trv::setNetMode(net_mode_t mode, trv_mqtt_t *mqtt){
   }
   if (changed) {
       configDirty = true;
-      saveState();
       // We should probably do a restart to make sure there are no clashes with other operations
   }
 }
@@ -247,7 +246,6 @@ void Trv::setPassKey(const uint8_t *key) {
   if (memcmp(globalState.config.passKey, key, sizeof(globalState.config.passKey)) != 0) {
       memcpy(globalState.config.passKey, key, sizeof(globalState.config.passKey));
       configDirty = true;
-      saveState();
   }
 }
 
@@ -266,7 +264,6 @@ void Trv::setTempResolution(uint8_t res) {
 
   globalState.config.resolution = res;
   configDirty = true;
-  saveState();
   tempSensor->setResolution(globalState.config.resolution);
 }
 
@@ -274,7 +271,6 @@ void Trv::setTempCalibration(float temp) {
   if (globalState.config.local_temperature_calibration == temp) return;
   globalState.config.local_temperature_calibration = temp;
   configDirty = true;
-  saveState();
   checkAutoState();
 }
 
@@ -282,7 +278,6 @@ void Trv::setHeatingSetpoint(float temp) {
   if (globalState.config.current_heating_setpoint == temp) return;
   globalState.config.current_heating_setpoint = temp;
   configDirty = true;
-  saveState();
   checkAutoState();
 }
 
@@ -292,20 +287,16 @@ void Trv::setSystemMode(esp_zb_zcl_thermostat_system_mode_t mode) {
   }
   if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF) {
     globalState.config.system_mode = mode;
-    saveState();
     motor->setValvePosition(0);
   } else if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT) {
     globalState.config.system_mode = mode;
-    saveState();
     motor->setValvePosition(100);
   } else if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO) {
     globalState.config.system_mode = mode;
-    saveState();
     checkAutoState();
   } else if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP) {
     globalState.config.system_mode = mode;
     motor->setValvePosition(-1); // Just stops the motor where it is
-    saveState();
     // In sleep mode we just don't move the plunger at all
   }
 }

@@ -78,11 +78,11 @@ protected:
   void doUnpair();
   void doUpdate();
   void checkAutoState();
+  void saveState();
 
 public:
   Trv();
   virtual ~Trv();
-  void saveState();
   void resetValve();
   const trv_state_t &getState(bool fast);
   void setHeatingSetpoint(float temp);

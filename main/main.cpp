@@ -92,7 +92,6 @@ void checkForMessages(Trv* trv) {
   }
   WithTask::waitForAllTasks();
   net.sendStateToHub(trv->getState(false));
-  trv->saveState();
 }
 
 static RTC_DATA_ATTR int wakeCount = 0;
