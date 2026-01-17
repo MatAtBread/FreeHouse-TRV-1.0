@@ -16,8 +16,11 @@ protected:
 public:
   EspNet();
   ~EspNet();
-  void sendStateToHub(Trv *trv, const trv_state_t &);
+  void sendStateToHub(Trv *trv);
   void checkMessages(Trv *trv);
+  bool pendingMessages() const {
+    return !bufferedMessage.empty();
+  }
   static void unpair();
 
   // Internal referenced from statics

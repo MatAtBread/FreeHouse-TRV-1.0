@@ -42,7 +42,7 @@ esp_err_t add_peer(const uint8_t *mac, uint8_t channel) {
                                      : esp_now_add_peer)(&peer);
 }
 
-void EspNet::sendStateToHub(Trv *trv, const trv_state_t &state) {
+void EspNet::sendStateToHub(Trv *trv) {
   if (trv == NULL) {
     ESP_LOGE(TAG, "sendStateToHub: trv is NULL");
     return;
@@ -51,6 +51,8 @@ void EspNet::sendStateToHub(Trv *trv, const trv_state_t &state) {
     ESP_LOGE(TAG, "sendStateToHub: trv is NOT NULL - re-entrant condition detected!");
     return;
   }
+  const trv_state_t &state = trv->getState(false);
+
   this->trv = trv;
 
   wait(); // Ensure discovery is finished

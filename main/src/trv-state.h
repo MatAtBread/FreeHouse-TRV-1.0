@@ -67,10 +67,10 @@ typedef struct trv_state_s
 class Trv: public WithTask
 {
 protected:
-  DallasOneWire *tempSensor;
-  MotorController *motor;
-  BatteryMonitor *battery;
-  TrvFS *fs;
+  DallasOneWire *tempSensor = NULL;
+  MotorController *motor = NULL;
+  BatteryMonitor *battery = NULL;
+  TrvFS *fs = NULL;
   bool configDirty;
   bool mustCalibrate;
 

@@ -45,76 +45,68 @@ extern "C" void app_main() {
     ret = nvs_flash_init();
   }
   ESP_ERROR_CHECK(ret);
+  ESP_ERROR_CHECK(esp_netif_init());
+  ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-  TouchButton touchButton;
-  Trv* trv = new Trv();
-  trv->wait();
+  Trv trv; // Loads static state from FS
   EspNet net; // Start Wi-Fi based on Trv state (loaded above)
-  uint32_t dreamSecs;
 
-  if (trv->flatBattery() && !trv->is_charging()) {
+  if (trv.flatBattery() && !trv.is_charging()) {
     ESP_LOGI(TAG, "Battery exhausted");
-    trv = NULL; // Skip tidy up - we're dead
-    dreamSecs = 0x7FFFFFFF;  // Forever
+    // Skip tidy up - we're dead
+    esp_sleep_enable_ext1_wakeup(1ULL << TOUCH_PIN, ESP_EXT1_WAKEUP_ANY_HIGH);
+    esp_sleep_enable_timer_wakeup(0x7FFFFFFF * 1000000ULL);
+
+    esp_deep_sleep_start();
+    return;
+  }
+
+  uint32_t dreamSecs = 1;
+  TouchButton touchButton;
+  if (!trv.deviceName()[0] || touchButton.pressed() == PRESSED) {
+    ESP_LOGI(TAG, "Touch button pressed / device name '%s'", trv.deviceName());
+    CaptivePortal portal(&trv, trv.deviceName());
+    switch (portal.exitStatus) {
+      case exit_status_t::CALIBRATE:
+        trv.calibrate();
+        break;
+      case exit_status_t::TEST_MODE:
+        trv.testMode(touchButton);
+        break;
+      case exit_status_t::POWER_OFF:
+        ESP_LOGI(TAG, "Power off requested");
+        dreamSecs = 0x7FFFFFFF;  // Forever
+        break;
+      case exit_status_t::CLOSED:
+      case exit_status_t::NONE:
+      case exit_status_t::TIME_OUT:
+        break;
+    }
   } else {
-    dreamSecs = 1;
-
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-
-    ESP_LOGI(TAG, "Check touch button/device name");
-    if (!trv->deviceName()[0] || touchButton.pressed() == PRESSED) {
-      ESP_LOGI(TAG, "Touch button pressed / device name '%s'", trv->deviceName());
-      CaptivePortal portal(trv, trv->deviceName());
-      switch (portal.exitStatus) {
-        case exit_status_t::CALIBRATE:
-          trv->calibrate();
-          break;
-        case exit_status_t::TEST_MODE:
-          trv->testMode(touchButton);
-          break;
-        case exit_status_t::POWER_OFF:
-          ESP_LOGI(TAG, "Power off requested");
-          dreamSecs = 0x7FFFFFFF;  // Forever
-          break;
-        case exit_status_t::CLOSED:
-        case exit_status_t::NONE:
-        case exit_status_t::TIME_OUT:
-          break;
-      }
-    } else {
-      const auto config = trv->getState(true).config;
-      net.checkMessages(trv);
-      // Note, if there were any messages that confifgured the heat settings,
-      // checkAutoState wuill have been called as part of their processing. So here,
-      // we only need to check the auto state for temperature changes. We do this
-      // every 60-120 seconds (min, might be more if sleep_time is large) to avoid
-      // excessive checking and the valve moving too often, and to give the device
-      // temperature time to settle after a change (which drives up the internal
-      // temperature and causes resonance)
-      // Check every 60 seconds, which is (usually) inferred from the config sleep_time
+    const auto config = trv.getState(true).config;
+    do {
+      net.checkMessages(&trv);
       int checkEvery = 60 / config.sleep_time;
       ESP_LOGI(TAG, "checkForMessages %d / %d", messgageChecks, checkEvery);
       if (messgageChecks >= checkEvery) {
-        trv->setSystemMode(config.system_mode);
+        // Every 60 seconds re-set the system-mode to ensure the TRV acts to correct things like motor time-outs or temperature changes
+        trv.setSystemMode(config.system_mode);
         messgageChecks = 0;
       } else {
         messgageChecks += 1;
       }
-      dreamSecs = config.sleep_time;
-    }
-    WithTask::waitForAllTasks();
-    net.sendStateToHub(trv, trv->getState(false));
+    } while (net.pendingMessages()); // We may have recieved more messages if processing was expesnive (like a motor operaation)
+    dreamSecs = config.sleep_time;
   }
+  WithTask::waitForAllTasks();
+  net.sendStateToHub(&trv);
 
   uint64_t ext1WakeMask = (1ULL << TOUCH_PIN);
-  if (trv) {
-    if (!trv->is_charging()) {
-      // Ideally, we'd wake on CHARGING changed, but in the current h/w this is not
-      // an RTC_GPIO. On Rev3.2, the CHARGIBG pin is connected to GPIO2, so we can use that.
-      ext1WakeMask |= (1ULL << 2);
-    }
-    delete trv;
+  if (!trv.is_charging()) {
+    // Ideally, we'd wake on CHARGING changed, but in the current h/w this is not
+    // an RTC_GPIO. On Rev3.2, the CHARGING pin is connected to GPIO2, so we can use that
+    // if we're not alreday charghing (if we are, it would wake immediately)
+    ext1WakeMask |= (1ULL << 2);
   }
 
   // Prepare to sleep. Wake on touch or timeout

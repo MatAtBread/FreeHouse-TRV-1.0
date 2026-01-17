@@ -100,13 +100,14 @@ Trv::Trv() {
     }
     mustCalibrate = true;
   }
+  // We crerate the battery monitor here, as it's fast and not task based, which makes testing for a flat battery quick
+  battery = new BatteryMonitor();
   StartTask(Trv);
 }
 
 void Trv::task() {
   // Get the sensor values
   tempSensor = new DallasOneWire(globalState.sensors.sensor_temperature, globalState.config.resolution);
-  battery = new BatteryMonitor();
   motor = new MotorController(battery, globalState.sensors.position, globalState.config.motor);
   if (mustCalibrate) {
       motor->calibrate();
@@ -257,12 +258,12 @@ void Trv::setPassKey(const uint8_t *key) {
 }
 
 bool Trv::flatBattery() {
-  wait();
+  // No need to wait, battery created fast in constructor
   return battery->getPercent() <= 1;
 }
 
 bool Trv::is_charging() {
-  wait();
+  // No need to wait, battery created fast in constructor
   return battery->is_charging();
 }
 
