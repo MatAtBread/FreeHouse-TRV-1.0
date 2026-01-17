@@ -2,19 +2,22 @@
 #include "../src/trv-state.h"
 #include "../trv.h"
 
-class EspNet {
+class EspNet : public WithTask {
 protected:
   Trv *trv;
   uint8_t *joinPhrase = NULL;
   size_t joinPhraseLen = 0;
   void pair_with_hub();
   EventGroupHandle_t sendEvent;
+  std::string bufferedMessage;
+
+  void task() override;
 
 public:
-  EspNet(Trv *trv);
+  EspNet();
   ~EspNet();
-  void sendStateToHub(const trv_state_t &);
-  void checkMessages();
+  void sendStateToHub(Trv *trv, const trv_state_t &);
+  void checkMessages(Trv *trv);
   static void unpair();
 
   // Internal referenced from statics

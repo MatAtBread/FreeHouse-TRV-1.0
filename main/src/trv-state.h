@@ -79,11 +79,11 @@ protected:
   void doUpdate();
   void checkAutoState();
   void saveState();
+  static float getMcuTemp();
 
 public:
   Trv();
   virtual ~Trv();
-  void resetValve();
   const trv_state_t &getState(bool fast);
   void setHeatingSetpoint(float temp);
   void setSystemMode(esp_zb_zcl_thermostat_system_mode_t mode);
@@ -99,8 +99,9 @@ public:
   void processNetMessage(const char *json);
 
   static const char* deviceName();
+  static const uint8_t* getPassKey();
   static uint32_t stateVersion();
-  static std::string asJson(const trv_state_t& state, signed int rssi = 0);
+  std::string asJson(const trv_state_t& state, signed int rssi = 0);
   static const char* writeable[];
 };
 

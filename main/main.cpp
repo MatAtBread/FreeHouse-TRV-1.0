@@ -22,7 +22,7 @@ const char* TAG = "TRV";
 typedef enum { WAIT,
                PRESSED,
                NOT_PRESSED } TouchState;
-class TouchButton : public WithTask {
+class TouchButton : protected WithTask {
  protected:
   TouchState state;
 
@@ -48,54 +48,17 @@ class TouchButton : public WithTask {
     reset();
   }
   bool pressed() {
-    ESP_LOGI(TAG, "Touch button (1) state %d running %p", state, running);
     wait();
-    ESP_LOGI(TAG, "Touch button (2) state %d running %p", state, running);
     return state == PRESSED;
   };
   void reset() {
+    wait();
     state = WAIT;
     StartTask(TouchButton);
   }
 };
 
 static RTC_DATA_ATTR int messgageChecks = 0;
-void checkForMessages(Trv* trv) {
-  // Create `net` based on config
-  // auto state = Trv::getLastState();
-  // ESP_LOGI(TAG, "checkIncomingMessages using netMode %u", state->netMode);
-  // switch (state->netMode) {
-  //   case NET_MODE_ESP_NOW:
-  EspNet net(trv);
-  //   break;
-  //   case NET_MODE_MQTT:
-  //   break;
-  //   case NET_MODE_ZIGBEE:
-  //   break;
-  // }
-
-  net.checkMessages();
-  // Note, if there were any messages that confifgured the heat settings,
-  // checkAutoState wuill have been called as part of their processing. So here,
-  // we only need to check the auto state for temperature changes. We do this
-  // every 60-120 seconds (min, might be more if sleep_time is large) to avoid
-  // excessive checking and the valve moving too often, and to give the device
-  // temperature time to settle after a change (which drives up the internal
-  // temperature and causes resonance)
-  // Check every 60 seconds, which is (usually) inferred from the config sleep_time
-  const auto config = trv->getState(true).config;
-  int checkEvery = 60 / config.sleep_time;
-  ESP_LOGI(TAG, "checkForMessages %d / %d", messgageChecks, checkEvery);
-  if (messgageChecks >= checkEvery) {
-    trv->setSystemMode(config.system_mode);
-    messgageChecks = 0;
-  } else {
-    messgageChecks += 1;
-  }
-  WithTask::waitForAllTasks();
-  net.sendStateToHub(trv->getState(false));
-}
-
 static RTC_DATA_ATTR int wakeCount = 0;
 char versionDetail[110] = {0};
 
@@ -116,34 +79,32 @@ extern "C" void app_main() {
   ESP_LOGI(TAG, "Wake: %d reset: %d count: %d", wakeCause, resetCause,
            wakeCount);
 
-      esp_err_t ret = nvs_flash_init();
-      if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
-          ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-      }
-      ESP_ERROR_CHECK(ret);
+  esp_err_t ret = nvs_flash_init();
+  if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
+      ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    ESP_ERROR_CHECK(nvs_flash_erase());
+    ret = nvs_flash_init();
+  }
+  ESP_ERROR_CHECK(ret);
 
-  ESP_ERROR_CHECK(esp_netif_init());
-  ESP_ERROR_CHECK(esp_event_loop_create_default());
-
-  // ESP_LOGI(TAG,"Heap %lu",esp_get_free_heap_size());
-  ESP_LOGI(TAG, "Create TRV");
   Trv* trv = new Trv();
-  uint32_t dreamSecs = 1;
+  uint32_t dreamSecs;
 
   if (trv->flatBattery() && !trv->is_charging()) {
     ESP_LOGI(TAG, "Battery exhausted");
-    dreamSecs = 60 * 60;
+    dreamSecs = 0x7FFFFFFF;  // Forever
   } else {
+    dreamSecs = 1;
+
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+    EspNet net; // Start Wi-Fi
     TouchButton touchButton;
+
     ESP_LOGI(TAG, "Check touch button/device name");
     if (!trv->deviceName()[0] || touchButton.pressed() == PRESSED) {
-      if (resetCause == ESP_RST_DEEPSLEEP) {
-         nvs_flash_init();
-      }
-      ESP_LOGI(TAG, "Touch button pressed / device name '%s'",
-               trv->deviceName());
+      ESP_LOGI(TAG, "Touch button pressed / device name '%s'", trv->deviceName());
       CaptivePortal portal(trv, trv->deviceName());
       switch (portal.exitStatus) {
         case exit_status_t::CALIBRATE: {
@@ -165,7 +126,7 @@ extern "C" void app_main() {
             ESP_LOGI(TAG, "Test cycle %d", count++);
 
             float temp = 0;
-            DallasOneWire tempSensor(temp);
+            DallasOneWire tempSensor(temp, state.config.resolution);
 
             const int target = count & 1 ? 100 : 0;
             motor->setValvePosition(target);
@@ -174,18 +135,18 @@ extern "C" void app_main() {
               ESP_LOGW(TAG, "Failed to reach target %d, got %d. Sleeping.",
                        target, motor->getValvePosition());
             }
-            delay(2000);
-          }
-          touchButton.reset();
-          if (touchButton.wait() == PRESSED) {
-            ESP_LOGI(TAG, "Exit test mode on touch");
-            dreamSecs = 1;
-            break;
+            delay(5000);
+            touchButton.reset();
+            if (touchButton.pressed()) {
+              ESP_LOGI(TAG, "Exit test mode on touch");
+              dreamSecs = 1;
+              break;
+            }
           }
         } break;
         case exit_status_t::POWER_OFF:
           ESP_LOGI(TAG, "Power off requested");
-          dreamSecs = 0x7FFFFFFF;  // 30 * 24 * 60 * 60;
+          dreamSecs = 0x7FFFFFFF;  // Forever
           break;
         case exit_status_t::CLOSED:
         case exit_status_t::NONE:
@@ -193,19 +154,37 @@ extern "C" void app_main() {
           dreamSecs = 1;
           break;
       }
-      EspNet net(trv);
-      net.sendStateToHub(trv->getState(false));
     } else {
       const auto config = trv->getState(true).config;
-      if (resetCause != ESP_RST_DEEPSLEEP) {
-        resetCause = ESP_RST_DEEPSLEEP;  // To suppress further reset in no-sleep mode
+      net.checkMessages(trv);
+      // Note, if there were any messages that confifgured the heat settings,
+      // checkAutoState wuill have been called as part of their processing. So here,
+      // we only need to check the auto state for temperature changes. We do this
+      // every 60-120 seconds (min, might be more if sleep_time is large) to avoid
+      // excessive checking and the valve moving too often, and to give the device
+      // temperature time to settle after a change (which drives up the internal
+      // temperature and causes resonance)
+      // Check every 60 seconds, which is (usually) inferred from the config sleep_time
+      int checkEvery = 60 / config.sleep_time;
+      ESP_LOGI(TAG, "checkForMessages %d / %d", messgageChecks, checkEvery);
+      if (messgageChecks >= checkEvery) {
         trv->setSystemMode(config.system_mode);
+        messgageChecks = 0;
+      } else {
+        messgageChecks += 1;
       }
-      checkForMessages(trv);
       dreamSecs = config.sleep_time;
     }
+    WithTask::waitForAllTasks();
+    net.sendStateToHub(trv, trv->getState(false));
   }
 
+  uint64_t ext1WakeMask = (1ULL << TOUCH_PIN);
+  if (!trv->is_charging()) {
+    // Ideally, we'd wake on CHARGING changed, but in the current h/w this is not
+    // an RTC_GPIO. On Rev3.2, the CHARGIBG pin is connected to GPIO2, so we can use that.
+    ext1WakeMask |= (1ULL << 2);
+  }
   delete trv;
 
   // Prepare to sleep. Wake on touch or timeout
@@ -213,8 +192,8 @@ extern "C" void app_main() {
   GPIO::pinMode(TOUCH_PIN, INPUT);
 
   // Ideally, we'd wake on CHARGING changed, but in the current h/w this is not
-  // an RTC_GPIO
-  esp_sleep_enable_ext1_wakeup(1ULL << TOUCH_PIN, ESP_EXT1_WAKEUP_ANY_HIGH);
+  // an RTC_GPIO. On Rev3.2, the CHARGIBG pin is connected to GPIO2, so we can use that.
+  esp_sleep_enable_ext1_wakeup(ext1WakeMask, ESP_EXT1_WAKEUP_ANY_HIGH);
   esp_sleep_enable_timer_wakeup(dreamSecs * 1000000ULL);
   ESP_LOGI(TAG, "deep sleep %u secs", dreamSecs);
 

@@ -5,7 +5,7 @@
 #include <freertos/event_groups.h>
 #include <freertos/task.h>
 
-#define StartTask(Cl) (this->startTask(#Cl))
+#define StartTask(Cl, ...) (this->startTask(#Cl, ##__VA_ARGS__))
 
 #define WITHTASK_FINISHED (1 << 0)
 
@@ -40,7 +40,7 @@ public:
                    : NOT_RUNNING;
   }
 
-  EventGroupHandle_t startTask(const char *name, int stackSize = 8192);
+  EventGroupHandle_t startTask(const char *name, int stackSize = 8192, int priority = 1);
 
   // Pure virtual function to be implemented by derived classes
   virtual void task() = 0;

@@ -35,11 +35,7 @@ MotorController::MotorController(BatteryMonitor *battery, uint8_t &current,
   GPIO::pinMode(NSLEEP, OUTPUT);
   GPIO::pinMode(MOTOR, OUTPUT);
   setDirection(0);
-  if (trackRatio == 0) {
-    calibrate();
-    ESP_LOGI(TAG, "MotorController::MotorController initialized, trackRatio=%d",
-             trackRatio);
-  }
+  calibrate(false);
 }
 
 int MotorController::getDirection() {
@@ -88,14 +84,16 @@ void MotorController::setValvePosition(int pos) {
 
 uint8_t MotorController::getValvePosition() { return current; }
 
-void MotorController::calibrate() {
-  ESP_LOGI(TAG, "MotorController::calibrate");
-  setValvePosition(100);
-  wait();
-  setValvePosition(0);
-  wait();
-  setValvePosition(100);
-  wait();
+void MotorController::calibrate(bool force) {
+  if (force || trackRatio == 0) {
+    ESP_LOGI(TAG, "MotorController::calibrate");
+    setValvePosition(100);
+    wait();
+    setValvePosition(0);
+    wait();
+    setValvePosition(100);
+    wait();
+  }
 }
 
 static char bar[160];

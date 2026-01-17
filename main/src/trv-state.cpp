@@ -15,7 +15,6 @@
 #define BACKOFF_MS_DEFAULT 100
 
 extern const char *systemModes[];
-
 static RTC_DATA_ATTR trv_state_t globalState;
 const trv_state_t defaultState = {
   .version = STATE_VERSION,
@@ -52,6 +51,7 @@ const trv_state_t defaultState = {
 };
 
 const char *Trv::deviceName() { return globalState.config.mqttConfig.device_name; }
+const uint8_t *Trv::getPassKey() { return globalState.config.passKey; }
 uint32_t Trv::stateVersion() { return globalState.version; }
 
 #define UPDATE_STATE(number, default_expr) \
@@ -62,6 +62,15 @@ uint32_t Trv::stateVersion() { return globalState.version; }
     ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);\
   }
 
+static float mcuTempCache = -1000.0;
+float Trv::getMcuTemp() {
+  if (mcuTempCache < -999.0) {
+    mcu_temp_init();
+    mcuTempCache = mcu_temp_read();
+    mcu_temp_deinit();
+  }
+  return mcuTempCache;
+}
 
 Trv::Trv() {
   bool mustCalibrate = false;
@@ -92,20 +101,14 @@ Trv::Trv() {
   }
 
   // Get the sensor values
-  tempSensor = new DallasOneWire(globalState.sensors.sensor_temperature);
+  tempSensor = new DallasOneWire(globalState.sensors.sensor_temperature, globalState.config.resolution);
   battery = new BatteryMonitor();
   motor = new MotorController(battery, globalState.sensors.position, globalState.config.motor);
   if (mustCalibrate) {
-      motor->calibrate();
+      motor->calibrate(false);
       globalState.sensors.position = motor->getValvePosition();
   }
   getState(true); // Lazily update temp
-  ESP_LOGI(TAG,"Initial state: '%s' mqtt://%s:%d, wifi %s >> %s",
-    globalState.config.mqttConfig.device_name,
-    globalState.config.mqttConfig.mqtt_server,
-    globalState.config.mqttConfig.mqtt_port,
-    globalState.config.mqttConfig.wifi_ssid,
-    asJson(globalState).c_str());
 }
 
 Trv::~Trv() {
@@ -132,15 +135,12 @@ void Trv::setSleepTime(int seconds) {
 }
 
 std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
-  mcu_temp_init();
-  auto mcu_temp = mcu_temp_read();
-  mcu_temp_deinit();
-  ESP_LOGI(TAG, "MCU temp: %f", mcu_temp);
+  ESP_LOGI(TAG, "MCU temp: %f", getMcuTemp());
 
   std::stringstream json;
   json << "{";
   if (rssi) json << "\"rssi\":" << rssi << ",";
-  json << "\"mcu_temperature\":" << mcu_temp << ","
+  json << "\"mcu_temperature\":" << getMcuTemp() << ","
     "\"local_temperature\":" << s.sensors.local_temperature << ","
     "\"sensor_temperature\":" << s.sensors.sensor_temperature << ","
     "\"battery_percent\":" << (int)s.sensors.battery_percent << ","
@@ -170,10 +170,6 @@ void Trv::saveState() {
   auto saved = fs->write("/trv/state", &globalState, sizeof(globalState));
   configDirty = !saved;
   ESP_LOGI(TAG, "saveState: %d", saved);
-}
-
-void Trv::resetValve() {
-  setSystemMode(globalState.config.system_mode);
 }
 
 void Trv::setMotorParameters(const motor_params_t& params) {
@@ -315,7 +311,8 @@ void Trv::checkAutoState() {
 void Trv::calibrate() {
   const auto mode = globalState.config.system_mode;
   globalState.config.system_mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP;
-  motor->calibrate();
+  motor->calibrate(true);
+  globalState.sensors.position = motor->getValvePosition();
   setSystemMode(mode);
   ESP_LOGI(TAG,"Calibrated state: '%s' mqtt://%s:%d, wifi %s >> %s",
     globalState.config.mqttConfig.device_name,

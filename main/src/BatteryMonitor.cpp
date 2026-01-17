@@ -3,6 +3,8 @@
 #include "../common/gpio/gpio.hpp"
 #include "BatteryMonitor.h"
 
+#define DISCHARGE_FLOOR 3300
+
 BatteryMonitor::BatteryMonitor() {
   GPIO::pinMode(CHARGING, INPUT);
   getRawValue();
@@ -36,10 +38,10 @@ uint8_t BatteryMonitor::getPercent(int raw) {
   }
 
   if (is_charging()) {
-    raw -= 150; // 0.15v is a typical charge bias voltage for CC charge circuit
+    raw -= 150; // 0.15v is a typical charge bias voltage for constant current charge circuit
   }
 
-  auto percent = (raw - 3100) / 8; // 3.1-3.9v
+  auto percent = 100 * (raw - DISCHARGE_FLOOR) / (3900 - DISCHARGE_FLOOR);
   if (percent < 0)
     percent = 0;
   else if (percent > 100)

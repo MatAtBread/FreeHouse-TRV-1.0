@@ -42,9 +42,27 @@ esp_err_t add_peer(const uint8_t *mac, uint8_t channel) {
                                      : esp_now_add_peer)(&peer);
 }
 
-void EspNet::sendStateToHub(const trv_state_t &state) {
+void EspNet::sendStateToHub(Trv *trv, const trv_state_t &state) {
+  if (trv == NULL) {
+    ESP_LOGE(TAG, "sendStateToHub: trv is NULL");
+    return;
+  }
+  if (this->trv != NULL) {
+    ESP_LOGE(TAG, "sendStateToHub: trv is NOT NULL - re-entrant condition detected!");
+    return;
+  }
+  this->trv = trv;
+
+  wait(); // Ensure discovery is finished
+
+  if (!bufferedMessage.empty()) {
+    trv->processNetMessage(bufferedMessage.c_str());
+    bufferedMessage.clear();
+  }
+
   if (wifiChannel == 0 || memcmp(hub, BROADCAST_ADDR, sizeof(hub)) == 0) {
     ESP_LOGW(TAG, "Not paired with hub, not sending state");
+    this->trv = NULL;
     return;
   }
 
@@ -59,6 +77,7 @@ void EspNet::sendStateToHub(const trv_state_t &state) {
   }
   ESP_LOGI(TAG, "Send state [%u] %s %s(%u)", json.length(), json.c_str(),
            status == ESP_OK ? "ok" : "failed", status);
+  this->trv = NULL;
 }
 
 void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info,
@@ -74,6 +93,14 @@ void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info,
 
   if (data[0] == '{') {
     // We got some data
+    if (trv == NULL) {
+      if (!bufferedMessage.empty()) {
+        ESP_LOGW(TAG, "recv-now: Overwriting buffered message: '%s'", bufferedMessage.c_str());
+      }
+      ESP_LOGI(TAG, "recv-now: Message received but trv is NULL (buffering)");
+      bufferedMessage = std::string((const char *)data, data_len);
+      return;
+    }
     trv->processNetMessage((const char *)data);
   } else if (memcmp(data, "PACK", 4) == 0) {
     if (nextPair == NULL) {
@@ -135,68 +162,11 @@ static void boundTx(const esp_now_send_info_t *tx_info,
     instance->data_send_callback(tx_info->des_addr, status);
 }
 
-EspNet::EspNet(Trv *trv) : trv(trv) {
+EspNet::EspNet() : trv(NULL) {
   ESP_LOGI(TAG, "Init EspNet");
   instance = this;
   sendEvent = xEventGroupCreate();
-
-  uint8_t *out;
-  size_t out_len;
-  {
-    std::stringstream pairName;
-    pairName << Trv::deviceName()
-             << PAIR_DELIM "FreeHouse" PAIR_DELIM "{"
-                           "\"model\":\"" FREEHOUSE_MODEL "\","
-                           "\"state_version\":"
-             << Trv::stateVersion()
-             << ","
-                "\"build\":\""
-             << versionDetail
-             << "\","
-                "\"writeable\":[";
-
-    for (auto p = Trv::writeable; *p; p++) {
-      if (p != Trv::writeable)
-        pairName << ",";
-      pairName << "\"" << *p << "\"";
-    }
-    pairName << "]}";
-
-    ESP_LOGI(TAG, "Pairing as: %s", pairName.str().c_str());
-    if (encrypt_bytes_with_passphrase(pairName.str().c_str(), 0,
-                                      trv->getState(true).config.passKey, &out,
-                                      &out_len)) {
-      ESP_LOGW(TAG, "Failed to encrypt JOIN");
-      return;
-    }
-  }
-
-  {
-    this->joinPhrase = (uint8_t *)malloc(out_len + 4);
-    *((uint32_t *)this->joinPhrase) = *((const uint32_t *)"JOIN");
-    memcpy(this->joinPhrase + 4, out, out_len);
-    free(out);
-    this->joinPhraseLen = out_len + 4;
-  }
-
-  // 2. Configure WiFi
-  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  ESP_ERROR_CHECK(dev_wifi_init(&cfg));
-
-  // 3. Avoid NVS usage for faster startup
-  ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
-
-  // 4. Set minimal WiFi mode (STA or AP)
-  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-  ESP_ERROR_CHECK(esp_wifi_start());
-
-  // 5. Initialize ESP-NOW
-  ESP_ERROR_CHECK(esp_now_init());
-
-  // 7. Register callbacks
-  esp_now_register_recv_cb(boundRx);
-  esp_now_register_send_cb(boundTx);
-  ESP_LOGI(TAG, "EspNet created");
+  StartTask(EspNet);
 }
 
 EspNet::~EspNet() {
@@ -205,10 +175,11 @@ EspNet::~EspNet() {
     free(this->joinPhrase);
   if (sendEvent)
     vEventGroupDelete(sendEvent);
-  ESP_LOGI(TAG, "De-init radio");
-  ESP_ERROR_CHECK(esp_now_deinit());
-  ESP_ERROR_CHECK(esp_wifi_stop());
-  ESP_ERROR_CHECK(dev_wifi_deinit());
+  // Skip slow radio de-init before sleep; hardware power-down handles it faster.
+  // ESP_LOGI(TAG, "De-init radio");
+  // ESP_ERROR_CHECK(esp_now_deinit());
+  // ESP_ERROR_CHECK(esp_wifi_stop());
+  // ESP_ERROR_CHECK(dev_wifi_deinit());
 }
 
 static volatile uint8_t new_channel = 0xFF; // Invalid channel
@@ -238,8 +209,8 @@ esp_err_t set_channel(uint8_t channel) {
   if (e == ESP_OK) {
     int elapsed = 0;
     while (new_channel != channel && elapsed < 500) {
-      vTaskDelay(pdMS_TO_TICKS(20));
-      elapsed += 20;
+      vTaskDelay(pdMS_TO_TICKS(5));
+      elapsed += 5;
     }
     if (new_channel != channel) {
       ESP_LOGW(TAG, "Timed out waiting for channel %d change event", channel);
@@ -314,8 +285,102 @@ void EspNet::unpair() {
   wifiChannel = 0;
 }
 
-void EspNet::checkMessages() {
+typedef struct {
+  size_t len;
+  uint8_t phrase[512];
+  char deviceName[32];
+  uint8_t passKey[32];
+} join_cache_t;
+
+RTC_DATA_ATTR static join_cache_t rtcCache;
+
+void EspNet::task() {
+  uint8_t *out;
+  size_t out_len;
+
+  const char* currentName = Trv::deviceName();
+  const uint8_t* currentKey = Trv::getPassKey();
+
+  // Validate cache against current identity
+  bool cacheValid = (esp_reset_reason() == ESP_RST_DEEPSLEEP) &&
+                    (rtcCache.len > 0) &&
+                    (rtcCache.len <= sizeof(rtcCache.phrase)) &&
+                    (strcmp(rtcCache.deviceName, currentName) == 0) &&
+                    (memcmp(rtcCache.passKey, currentKey, 32) == 0);
+
+  if (cacheValid) {
+    this->joinPhrase = (uint8_t *)malloc(rtcCache.len);
+    memcpy(this->joinPhrase, rtcCache.phrase, rtcCache.len);
+    this->joinPhraseLen = rtcCache.len;
+    ESP_LOGI(TAG, "Using cached JOIN phrase (%d bytes)", (int)this->joinPhraseLen);
+  } else {
+    std::stringstream pairName;
+    pairName << currentName
+             << PAIR_DELIM "FreeHouse" PAIR_DELIM "{"
+                           "\"model\":\"" FREEHOUSE_MODEL "\","
+                           "\"state_version\":"
+             << Trv::stateVersion()
+             << ","
+                "\"build\":\""
+             << versionDetail
+             << "\","
+                "\"writeable\":[";
+
+    for (auto p = Trv::writeable; *p; p++) {
+      if (p != Trv::writeable)
+        pairName << ",";
+      pairName << "\"" << *p << "\"";
+    }
+    pairName << "]}";
+
+    ESP_LOGI(TAG, "Pairing as: %s", pairName.str().c_str());
+    if (encrypt_bytes_with_passphrase(pairName.str().c_str(), 0,
+                                      currentKey, &out,
+                                      &out_len) == 0) {
+      this->joinPhraseLen = out_len + 4;
+      this->joinPhrase = (uint8_t *)malloc(this->joinPhraseLen);
+      *((uint32_t *)this->joinPhrase) = *((const uint32_t *)"JOIN");
+      memcpy(this->joinPhrase + 4, out, out_len);
+      free(out);
+
+      // Update RTC cache for future wakes
+      if (this->joinPhraseLen <= sizeof(rtcCache.phrase)) {
+        rtcCache.len = this->joinPhraseLen;
+        memcpy(rtcCache.phrase, this->joinPhrase, rtcCache.len);
+        strncpy(rtcCache.deviceName, currentName, sizeof(rtcCache.deviceName));
+        memcpy(rtcCache.passKey, currentKey, 32);
+      }
+    } else {
+      rtcCache.len = 0;
+      ESP_LOGW(TAG, "Failed to encrypt JOIN");
+    }
+  }
+
+  // 2. Configure WiFi (formerly in constructor)
+  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+  ESP_ERROR_CHECK(dev_wifi_init(&cfg));
+
+  // 3. Avoid NVS usage for faster startup
+  ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+
+  // 4. Set minimal WiFi mode (STA or AP)
+  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+  ESP_ERROR_CHECK(esp_wifi_start());
+
+  // 5. Initialize ESP-NOW
+  ESP_ERROR_CHECK(esp_now_init());
+
+  // 7. Register callbacks
+  esp_now_register_recv_cb(boundRx);
+  esp_now_register_send_cb(boundTx);
+  ESP_LOGI(TAG, "EspNet created");
+
   for (int retries = 0; retries < 2; retries++) {
+    // If we have a channel but no hub address, we aren't really paired
+    if (memcmp(hub, BROADCAST_ADDR, sizeof(hub)) == 0) {
+      wifiChannel = 0;
+    }
+
     if (wifiChannel == 0) {
       this->pair_with_hub();
     } else {
@@ -332,3 +397,29 @@ void EspNet::checkMessages() {
     }
   }
 }
+
+void EspNet::checkMessages(Trv *trv) {
+  if (trv == NULL) {
+    ESP_LOGE(TAG, "checkMessages: trv is NULL");
+    return;
+  }
+  if (this->trv != NULL) {
+    ESP_LOGE(TAG, "checkMessages: trv is NOT NULL - re-entrant condition detected!");
+    return;
+  }
+  this->trv = trv;
+
+  // Wait for the background discovery/ping to complete
+  wait();
+
+  if (!bufferedMessage.empty()) {
+    trv->processNetMessage(bufferedMessage.c_str());
+    bufferedMessage.clear();
+  }
+
+  // If discovery hasn't settled on a hub, the task will yield.
+  // We can add logic here if we need to do more after trv is available.
+
+  this->trv = NULL;
+}
+
