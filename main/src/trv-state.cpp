@@ -72,8 +72,9 @@ float Trv::getMcuTemp() {
   return mcuTempCache;
 }
 
+// On construction, the state is guaranteed to be valid, and asynchronously the sensors, etc are initialized
 Trv::Trv() {
-  bool mustCalibrate = false;
+  mustCalibrate = false;
   configDirty = false;
   fs = new TrvFS();
 
@@ -99,19 +100,23 @@ Trv::Trv() {
     }
     mustCalibrate = true;
   }
+  StartTask(Trv);
+}
 
+void Trv::task() {
   // Get the sensor values
   tempSensor = new DallasOneWire(globalState.sensors.sensor_temperature, globalState.config.resolution);
   battery = new BatteryMonitor();
   motor = new MotorController(battery, globalState.sensors.position, globalState.config.motor);
   if (mustCalibrate) {
-      motor->calibrate(false);
+      motor->calibrate();
       globalState.sensors.position = motor->getValvePosition();
   }
-  getState(true); // Lazily update temp
+  getInternalState(true); // Lazily update temp
 }
 
 Trv::~Trv() {
+  wait();
   if (configDirty) saveState(); // Update NVS if necessary
   if (this->otaUrl.length()) {
     doUpdate();
@@ -176,6 +181,7 @@ void Trv::setMotorParameters(const motor_params_t& params) {
   if (params.reversed == true || params.reversed == false) {
     if (globalState.config.motor.reversed != params.reversed) {
       globalState.config.motor.reversed = params.reversed;
+      wait();
       const auto pos = motor->getValvePosition();
       globalState.sensors.position = 50; // Invalidate position
       motor->setValvePosition(pos ? 100 : 0);  // Re-apply current position to change direction
@@ -196,6 +202,11 @@ void Trv::setMotorParameters(const motor_params_t& params) {
 }
 
 const trv_state_t& Trv::getState(bool fast) {
+  wait();
+  return getInternalState(fast);
+}
+
+const trv_state_t& Trv::getInternalState(bool fast) {
   globalState.sensors.is_charging = battery->is_charging();
   // We don't read the temperature if we are charging, as the MCU is hot
   if (!fast) {
@@ -246,10 +257,12 @@ void Trv::setPassKey(const uint8_t *key) {
 }
 
 bool Trv::flatBattery() {
+  wait();
   return battery->getPercent() <= 1;
 }
 
 bool Trv::is_charging() {
+  wait();
   return battery->is_charging();
 }
 
@@ -260,6 +273,7 @@ void Trv::setTempResolution(uint8_t res) {
 
   globalState.config.resolution = res;
   configDirty = true;
+  wait();
   tempSensor->setResolution(globalState.config.resolution);
 }
 
@@ -281,6 +295,7 @@ void Trv::setSystemMode(esp_zb_zcl_thermostat_system_mode_t mode) {
   if (globalState.config.system_mode != mode) {
       configDirty = true;
   }
+  wait();
   if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF) {
     globalState.config.system_mode = mode;
     motor->setValvePosition(0);
@@ -298,7 +313,7 @@ void Trv::setSystemMode(esp_zb_zcl_thermostat_system_mode_t mode) {
 }
 
 void Trv::checkAutoState() {
-  auto state = getState(true);
+  auto state = getState(true); // wait already called
   if (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO) {
     if (state.sensors.local_temperature > state.config.current_heating_setpoint) {
       motor->setValvePosition(0);
@@ -309,9 +324,10 @@ void Trv::checkAutoState() {
 }
 
 void Trv::calibrate() {
+  wait();
   const auto mode = globalState.config.system_mode;
   globalState.config.system_mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP;
-  motor->calibrate(true);
+  motor->calibrate();
   globalState.sensors.position = motor->getValvePosition();
   setSystemMode(mode);
   ESP_LOGI(TAG,"Calibrated state: '%s' mqtt://%s:%d, wifi %s >> %s",
@@ -320,4 +336,27 @@ void Trv::calibrate() {
     globalState.config.mqttConfig.mqtt_port,
     globalState.config.mqttConfig.wifi_ssid,
     asJson(globalState).c_str());
+}
+
+void Trv::testMode(TouchButton &touchButton) {
+  ESP_LOGI(TAG, "Enter test mode");
+  int count = 0;
+  GPIO::digitalWrite(LED_BUILTIN, false);
+  wait();
+  while (true) {
+    ESP_LOGI(TAG, "Test cycle %d", count++);
+    const int target = count & 1 ? 100 : 0;
+    motor->setValvePosition(target);
+    motor->wait();
+    if (motor->getValvePosition() != target) {
+      ESP_LOGW(TAG, "Failed to reach target %d, got %d. Sleeping.",
+               target, motor->getValvePosition());
+    }
+    delay(5000);
+    touchButton.reset();
+    if (touchButton.pressed()) {
+      ESP_LOGI(TAG, "Exit test mode on touch");
+      return;
+    }
+  }
 }

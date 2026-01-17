@@ -11,12 +11,12 @@ typedef struct motor_params_s {
 } motor_params_t;
 
 class MotorController: public WithTask {
-  friend void test_fn();
  protected:
   BatteryMonitor* battery;
   volatile uint8_t target;
   volatile uint8_t& current;
   motor_params_t& params;
+  volatile bool calibrating = false;
 
   void setDirection(int dir);
 
@@ -26,7 +26,7 @@ class MotorController: public WithTask {
   int getDirection();
   void setValvePosition(int pos /* 0-100, -1 means "current position - stop the motor now" */);
   uint8_t getValvePosition();
-  void calibrate(bool force);
+  void calibrate();
   static const char* lastStatus;
 };
 

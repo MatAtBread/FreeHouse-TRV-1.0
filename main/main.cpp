@@ -11,52 +11,11 @@
 #include "src/WithTask.h"
 #include "src/trv-state.h"
 #include "trv.h"
+#include "src/TouchButton.hpp"
 
 extern "C" {
 const char* TAG = "TRV";
 }
-
-// Sample the touch ADC for up to 420ms to see if it was touched for the whole
-// second. Bails returning false if it was released/not touched during that
-// period.
-typedef enum { WAIT,
-               PRESSED,
-               NOT_PRESSED } TouchState;
-class TouchButton : protected WithTask {
- protected:
-  TouchState state;
-
-  void task() override {
-    for (int i = 0;; i++) {
-      auto n = GPIO::analogRead(TOUCH_PIN);
-      ESP_LOGI(TAG, "Touch test %d", n);
-      if (n >= 0 && n < 256) {
-        state = NOT_PRESSED;
-        return;
-      }
-      if (i == 6) {
-        ESP_LOGI(TAG, "Touch button pressed");
-        state = PRESSED;
-        return;
-      }
-      delay(70);
-    }
-  }
-
- public:
-  TouchButton() : WithTask() {
-    reset();
-  }
-  bool pressed() {
-    wait();
-    return state == PRESSED;
-  };
-  void reset() {
-    wait();
-    state = WAIT;
-    StartTask(TouchButton);
-  }
-};
 
 static RTC_DATA_ATTR int messgageChecks = 0;
 static RTC_DATA_ATTR int wakeCount = 0;
@@ -87,11 +46,15 @@ extern "C" void app_main() {
   }
   ESP_ERROR_CHECK(ret);
 
+  TouchButton touchButton;
   Trv* trv = new Trv();
+  trv->wait();
+  EspNet net; // Start Wi-Fi based on Trv state (loaded above)
   uint32_t dreamSecs;
 
   if (trv->flatBattery() && !trv->is_charging()) {
     ESP_LOGI(TAG, "Battery exhausted");
+    trv = NULL; // Skip tidy up - we're dead
     dreamSecs = 0x7FFFFFFF;  // Forever
   } else {
     dreamSecs = 1;
@@ -99,51 +62,17 @@ extern "C" void app_main() {
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    EspNet net; // Start Wi-Fi
-    TouchButton touchButton;
-
     ESP_LOGI(TAG, "Check touch button/device name");
     if (!trv->deviceName()[0] || touchButton.pressed() == PRESSED) {
       ESP_LOGI(TAG, "Touch button pressed / device name '%s'", trv->deviceName());
       CaptivePortal portal(trv, trv->deviceName());
       switch (portal.exitStatus) {
-        case exit_status_t::CALIBRATE: {
+        case exit_status_t::CALIBRATE:
           trv->calibrate();
-          dreamSecs = 1;
-        } break;
-        case exit_status_t::TEST_MODE: {
-          auto state = trv->getState(true);
-          delete trv;
-          ESP_LOGI(TAG, "Enter test mode");
-          // In test mode, we just cycle the valve and print the count
-          BatteryMonitor* battery = new BatteryMonitor();
-          uint8_t currentPosition = 0;
-          MotorController* motor =
-              new MotorController(battery, currentPosition, state.config.motor);
-          int count = 0;
-          GPIO::digitalWrite(LED_BUILTIN, false);
-          while (true) {
-            ESP_LOGI(TAG, "Test cycle %d", count++);
-
-            float temp = 0;
-            DallasOneWire tempSensor(temp, state.config.resolution);
-
-            const int target = count & 1 ? 100 : 0;
-            motor->setValvePosition(target);
-            motor->wait();
-            if (motor->getValvePosition() != target) {
-              ESP_LOGW(TAG, "Failed to reach target %d, got %d. Sleeping.",
-                       target, motor->getValvePosition());
-            }
-            delay(5000);
-            touchButton.reset();
-            if (touchButton.pressed()) {
-              ESP_LOGI(TAG, "Exit test mode on touch");
-              dreamSecs = 1;
-              break;
-            }
-          }
-        } break;
+          break;
+        case exit_status_t::TEST_MODE:
+          trv->testMode(touchButton);
+          break;
         case exit_status_t::POWER_OFF:
           ESP_LOGI(TAG, "Power off requested");
           dreamSecs = 0x7FFFFFFF;  // Forever
@@ -151,7 +80,6 @@ extern "C" void app_main() {
         case exit_status_t::CLOSED:
         case exit_status_t::NONE:
         case exit_status_t::TIME_OUT:
-          dreamSecs = 1;
           break;
       }
     } else {
@@ -180,12 +108,14 @@ extern "C" void app_main() {
   }
 
   uint64_t ext1WakeMask = (1ULL << TOUCH_PIN);
-  if (!trv->is_charging()) {
-    // Ideally, we'd wake on CHARGING changed, but in the current h/w this is not
-    // an RTC_GPIO. On Rev3.2, the CHARGIBG pin is connected to GPIO2, so we can use that.
-    ext1WakeMask |= (1ULL << 2);
+  if (trv) {
+    if (!trv->is_charging()) {
+      // Ideally, we'd wake on CHARGING changed, but in the current h/w this is not
+      // an RTC_GPIO. On Rev3.2, the CHARGIBG pin is connected to GPIO2, so we can use that.
+      ext1WakeMask |= (1ULL << 2);
+    }
+    delete trv;
   }
-  delete trv;
 
   // Prepare to sleep. Wake on touch or timeout
   GPIO::digitalWrite(LED_BUILTIN, true);

@@ -3,6 +3,7 @@
 
 #include <string>
 
+#include "WithTask.h"
 #include "trv.h"
 
 #include "BatteryMonitor.h"
@@ -10,6 +11,7 @@
 #include "MotorController.h"
 #include "fs.h"
 #include "../common/encryption/encryption.h"
+#include "TouchButton.hpp"
 
 
 typedef enum {
@@ -62,7 +64,7 @@ typedef struct trv_state_s
   } config;
 } trv_state_t;
 
-class Trv
+class Trv: public WithTask
 {
 protected:
   DallasOneWire *tempSensor;
@@ -70,6 +72,7 @@ protected:
   BatteryMonitor *battery;
   TrvFS *fs;
   bool configDirty;
+  bool mustCalibrate;
 
   std::string otaUrl;
   std::string otaSsid;
@@ -80,6 +83,8 @@ protected:
   void checkAutoState();
   void saveState();
   static float getMcuTemp();
+  void task();
+  const trv_state_t &getInternalState(bool fast);
 
 public:
   Trv();
@@ -96,6 +101,7 @@ public:
   void setSleepTime(int seconds);
   void setMotorParameters(const motor_params_t &params);
   void calibrate();
+  void testMode(TouchButton &touchButton);
   void processNetMessage(const char *json);
 
   static const char* deviceName();

@@ -35,7 +35,6 @@ MotorController::MotorController(BatteryMonitor *battery, uint8_t &current,
   GPIO::pinMode(NSLEEP, OUTPUT);
   GPIO::pinMode(MOTOR, OUTPUT);
   setDirection(0);
-  calibrate(false);
 }
 
 int MotorController::getDirection() {
@@ -84,16 +83,25 @@ void MotorController::setValvePosition(int pos) {
 
 uint8_t MotorController::getValvePosition() { return current; }
 
-void MotorController::calibrate(bool force) {
-  if (force || trackRatio == 0) {
-    ESP_LOGI(TAG, "MotorController::calibrate");
-    setValvePosition(100);
-    wait();
-    setValvePosition(0);
-    wait();
-    setValvePosition(100);
-    wait();
+void MotorController::calibrate() {
+  ESP_LOGI(TAG, "MotorController::calibrate requested");
+  while (calibrating) {
+    delay(200);
+    if (!calibrating) {
+      ESP_LOGI(TAG, "MotorController::calibrate other task finished");
+      return;
+    }
   }
+  calibrating = true;
+  ESP_LOGI(TAG, "MotorController::calibrating = true");
+  setValvePosition(100);
+  wait();
+  setValvePosition(0);
+  wait();
+  setValvePosition(100);
+  wait();
+  calibrating = false;
+  ESP_LOGI(TAG, "MotorController::calibrating = false");
 }
 
 static char bar[160];
@@ -232,7 +240,7 @@ void MotorController::task() {
     }
 
     // Longging only
-    if (true) {
+    if (false) {
       memset(bar, ' ', sizeof(bar) - 1);
       charChart(sizeof(bar) * (noloadBatt - spotBatt) / BAR_SCALE, '=');
 

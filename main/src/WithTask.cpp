@@ -88,11 +88,12 @@ void WithTask::start() {
   TaskStatus_t taskInfo = {.pcTaskName = "-"};
 
   vTaskGetInfo(NULL, &taskInfo, pdTRUE, eInvalid);
-  ESP_LOGI(TAG, "WithTask started  %s %d", taskInfo.pcTaskName, numRunning);
+  ESP_LOGI(TAG, "WithTask started  %s %d %d", taskInfo.pcTaskName, numRunning);
 
+  auto msecs = millis();
   task(); // Run user task logic
-
-  ESP_LOGI(TAG, "WithTask finishing %s", taskInfo.pcTaskName);
+  msecs = millis() - msecs;
+  ESP_LOGI(TAG, "WithTask finishing %s %u msecs", taskInfo.pcTaskName, msecs);
 
   if (running) {
     xEventGroupSetBits(running, WITHTASK_FINISHED);

@@ -292,7 +292,7 @@ typedef struct {
   uint8_t passKey[32];
 } join_cache_t;
 
-RTC_DATA_ATTR static join_cache_t rtcCache;
+RTC_DATA_ATTR static join_cache_t prevJoin;
 
 void EspNet::task() {
   uint8_t *out;
@@ -303,15 +303,15 @@ void EspNet::task() {
 
   // Validate cache against current identity
   bool cacheValid = (esp_reset_reason() == ESP_RST_DEEPSLEEP) &&
-                    (rtcCache.len > 0) &&
-                    (rtcCache.len <= sizeof(rtcCache.phrase)) &&
-                    (strcmp(rtcCache.deviceName, currentName) == 0) &&
-                    (memcmp(rtcCache.passKey, currentKey, 32) == 0);
+                    (prevJoin.len > 0) &&
+                    (prevJoin.len <= sizeof(prevJoin.phrase)) &&
+                    (strcmp(prevJoin.deviceName, currentName) == 0) &&
+                    (memcmp(prevJoin.passKey, currentKey, 32) == 0);
 
   if (cacheValid) {
-    this->joinPhrase = (uint8_t *)malloc(rtcCache.len);
-    memcpy(this->joinPhrase, rtcCache.phrase, rtcCache.len);
-    this->joinPhraseLen = rtcCache.len;
+    this->joinPhrase = (uint8_t *)malloc(prevJoin.len);
+    memcpy(this->joinPhrase, prevJoin.phrase, prevJoin.len);
+    this->joinPhraseLen = prevJoin.len;
     ESP_LOGI(TAG, "Using cached JOIN phrase (%d bytes)", (int)this->joinPhraseLen);
   } else {
     std::stringstream pairName;
@@ -344,14 +344,14 @@ void EspNet::task() {
       free(out);
 
       // Update RTC cache for future wakes
-      if (this->joinPhraseLen <= sizeof(rtcCache.phrase)) {
-        rtcCache.len = this->joinPhraseLen;
-        memcpy(rtcCache.phrase, this->joinPhrase, rtcCache.len);
-        strncpy(rtcCache.deviceName, currentName, sizeof(rtcCache.deviceName));
-        memcpy(rtcCache.passKey, currentKey, 32);
+      if (this->joinPhraseLen <= sizeof(prevJoin.phrase)) {
+        prevJoin.len = this->joinPhraseLen;
+        memcpy(prevJoin.phrase, this->joinPhrase, prevJoin.len);
+        strncpy(prevJoin.deviceName, currentName, sizeof(prevJoin.deviceName));
+        memcpy(prevJoin.passKey, currentKey, 32);
       }
     } else {
-      rtcCache.len = 0;
+      prevJoin.len = 0;
       ESP_LOGW(TAG, "Failed to encrypt JOIN");
     }
   }
