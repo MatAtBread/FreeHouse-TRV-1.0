@@ -289,6 +289,9 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t *req) {
           "<tr><td>Motor reversed</td>"
               "<td><input type=\"checkbox\" " << (state.config.motor.reversed ? "checked":"") << " name='motor_reversed' onchange='processMessage(this,undefined,this.checked)'></td>"
           "</tr>\n"
+          "<tr><td>Sleep time</td>"
+            "<td><input style='width:6em;' type='number' value='" << (state.config.debug_flags) << "' name='debug_flags' onchange='processMessage(this)'>s</td>"
+          "</tr>\n"
           "</table>\n"
 
         "<h2>Networking</h2>"

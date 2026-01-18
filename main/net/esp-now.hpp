@@ -16,8 +16,9 @@ protected:
 public:
   EspNet();
   ~EspNet();
-  void sendStateToHub(Trv *trv);
-  void checkMessages(Trv *trv);
+  void setTrv(Trv *trv);
+  void sendStateToHub(Trv *trv); // Calls setTrv()
+  void checkMessages(Trv *trv); // Calls setTrv()
   bool pendingMessages() const {
     return !bufferedMessage.empty();
   }

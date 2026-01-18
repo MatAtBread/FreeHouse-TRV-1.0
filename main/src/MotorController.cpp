@@ -239,8 +239,8 @@ void MotorController::task() {
       }
     }
 
-    // Longing only. Nasty hack - show the motor chart if the backoff_ms is odd
-    if (params.backoff_ms & 1) {
+    // Longing only
+    if (debugFlag(DEBUG_MOTOR_CONTROL)) {
       memset(bar, ' ', sizeof(bar) - 1);
       charChart(sizeof(bar) * (noloadBatt - spotBatt) / BAR_SCALE, '=');
 

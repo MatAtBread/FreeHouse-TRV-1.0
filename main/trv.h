@@ -19,8 +19,6 @@
 #define delay(n)  vTaskDelay(pdMS_TO_TICKS(n))
 #define millis()  esp_log_timestamp() // (unsigned long)(esp_timer_get_time() / 1000ULL)
 
-#endif // TRV_H
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,3 +29,12 @@ extern char versionDetail[];
 #ifdef __cplusplus
 }
 #endif
+
+enum DebugFlags {
+  DEBUG_LOG_INFO = 0x01,
+  DEBUG_MOTOR_CONTROL = 0x02,
+  DEBUG_ALL = 0x7FFFFFFF
+};
+extern uint32_t debugFlag(DebugFlags mask);
+#endif // TRV_H
+

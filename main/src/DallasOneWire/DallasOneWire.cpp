@@ -110,10 +110,6 @@ void DallasOneWire::task() {
     temp = (signed)(data) / 16.0;
     ESP_LOGI(TAG, "Temp is %f", temp);
   }
-
-  // Clones often report 7f even if they convert at 10-bit speeds.
-  // ESP_LOGI(TAG, "DS18B20 scratchpad %02x %02x %02x", scratchpad[2], scratchpad[3], scratchpad[4]);
-  // if (ow_reset(&ow) != ESP_OK) goto fail;
   return;
 
 fail:

@@ -41,7 +41,7 @@ const trv_state_t defaultState = {
     .passKey = {0},
     .sleep_time = 20,
     .resolution = 1,
-    ._reserved = 0,
+    .debug_flags = 0,
     .motor = {
       .reversed = false, // Added in STATE_VERSION 7
       .backoff_ms = 100, // Added in STATE_VERSION 8
@@ -49,6 +49,10 @@ const trv_state_t defaultState = {
     }
   }
 };
+
+uint32_t debugFlag(DebugFlags mask) {
+  return globalState.config.debug_flags & (uint32_t)mask;
+}
 
 const char *Trv::deviceName() { return globalState.config.mqttConfig.device_name; }
 const uint8_t *Trv::getPassKey() { return globalState.config.passKey; }
@@ -79,7 +83,7 @@ Trv::Trv() {
     __SIZE_TYPE__ r = fs->read("/trv/state", &state, sizeof(state));
     ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);
     if (r && (r <= sizeof(state) || state.version < STATE_VERSION)) {
-        UPDATE_STATE(7, state.config._reserved = 0; state.config.motor.backoff_ms = BACKOFF_MS_DEFAULT; state.config.motor.stall_ms = STALL_MS_DEFAULT; )
+        UPDATE_STATE(7, state.config.debug_flags = 0; state.config.motor.backoff_ms = BACKOFF_MS_DEFAULT; state.config.motor.stall_ms = STALL_MS_DEFAULT; )
         r = sizeof(state);
     }
 
@@ -99,13 +103,13 @@ Trv::Trv() {
 
 void Trv::task() {
   // Get the sensor values
-  if (!mcuTempSensor) mcuTempSensor = new McuTempSensor();
   tempSensor = new DallasOneWire(globalState.sensors.sensor_temperature, globalState.config.resolution);
   motor = new MotorController(battery, globalState.sensors.position, globalState.config.motor);
   if (mustCalibrate) {
       motor->calibrate();
       globalState.sensors.position = motor->getValvePosition();
   }
+  if (!mcuTempSensor) mcuTempSensor = new McuTempSensor(); // Lazily get MCU temp
   getInternalState(true); // Lazily update temp
 }
 
@@ -115,9 +119,10 @@ Trv::~Trv() {
   if (this->otaUrl.length()) {
     doUpdate();
   }
+  if (mcuTempSensor) delete mcuTempSensor;
   delete motor;
-  delete battery;
   delete tempSensor;
+  delete battery;
   delete fs;
 }
 
@@ -131,6 +136,14 @@ void Trv::setSleepTime(int seconds) {
     configDirty = true;
   }
   ESP_LOGI(TAG, "Set sleep time to %d seconds", seconds);
+}
+
+void Trv::setDebugFlags(uint32_t flags) {
+  if (globalState.config.debug_flags != flags) {
+    globalState.config.debug_flags = flags;
+    configDirty = true;
+  }
+  ESP_LOGI(TAG, "Set debug flags to 0x%04X. dirty=%d", flags, configDirty);
 }
 
 std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
@@ -150,6 +163,7 @@ std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
     "\"local_temperature_calibration\":" << s.config.local_temperature_calibration << ","
     "\"system_mode\":\"" << systemModes[s.config.system_mode] << "\","
     "\"sleep_time\":" << s.config.sleep_time << ","
+    "\"debug_flags\":" << s.config.debug_flags << ","
     "\"resolution\":" << (0.5 / (float)(1 << s.config.resolution)) << ","
     "\"unpair\":false,"
     "\"backoff_ms\":" << s.config.motor.backoff_ms << ","
@@ -192,6 +206,10 @@ void Trv::setMotorParameters(const motor_params_t& params) {
         configDirty = true;
     }
   }
+}
+
+const trv_config_t &Trv::getConfig() {
+  return globalState.config;
 }
 
 const trv_state_t& Trv::getState(bool fast) {

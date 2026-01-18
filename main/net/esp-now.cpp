@@ -42,18 +42,18 @@ esp_err_t add_peer(const uint8_t *mac, uint8_t channel) {
                                      : esp_now_add_peer)(&peer);
 }
 
-void EspNet::sendStateToHub(Trv *trv) {
+void EspNet::setTrv(Trv *trv) {
   if (trv == NULL) {
     ESP_LOGE(TAG, "sendStateToHub: trv is NULL");
-    return;
   }
-  if (this->trv != NULL) {
+  if (this->trv != NULL && this->trv != trv) {
     ESP_LOGE(TAG, "sendStateToHub: trv is NOT NULL - re-entrant condition detected!");
-    return;
   }
-  const trv_state_t &state = trv->getState(false);
+}
 
-  this->trv = trv;
+void EspNet::sendStateToHub(Trv *trv) {
+  setTrv(trv);
+  const trv_state_t &state = trv->getState(false); // causes a wait()
 
   wait(); // Ensure discovery is finished
 
@@ -64,7 +64,6 @@ void EspNet::sendStateToHub(Trv *trv) {
 
   if (wifiChannel == 0 || memcmp(hub, BROADCAST_ADDR, sizeof(hub)) == 0) {
     ESP_LOGW(TAG, "Not paired with hub, not sending state");
-    this->trv = NULL;
     return;
   }
 
@@ -75,17 +74,15 @@ void EspNet::sendStateToHub(Trv *trv) {
   xEventGroupClearBits(sendEvent, BIT0);
   auto status = esp_now_send(hub, (uint8_t *)json.c_str(), json.length());
   if (status == ESP_OK) {
-    xEventGroupWaitBits(sendEvent, BIT0, pdTRUE, pdTRUE, pdMS_TO_TICKS(200));
+    xEventGroupWaitBits(sendEvent, BIT0, pdTRUE, pdTRUE, pdMS_TO_TICKS(100));
   }
   ESP_LOGI(TAG, "Send state [%u] %s %s(%u)", json.length(), json.c_str(),
            status == ESP_OK ? "ok" : "failed", status);
-  this->trv = NULL;
 }
 
 void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info,
                                    const uint8_t *data, int data_len) {
-  ESP_LOGI(TAG,
-           "recv-now: src:" MACSTR " dst: " MACSTR ", ch %u+%u, rssi %d: %.*s",
+  ESP_LOGI(TAG, "recv-now: src:" MACSTR " dst: " MACSTR ", ch %u+%u, rssi %d: %.*s",
            MAC2STR(esp_now_info->src_addr), MAC2STR(esp_now_info->des_addr),
            esp_now_info->rx_ctrl->channel, esp_now_info->rx_ctrl->second,
            esp_now_info->rx_ctrl->rssi, data_len, data);
@@ -168,7 +165,7 @@ EspNet::EspNet() : trv(NULL) {
   ESP_LOGI(TAG, "Init EspNet");
   instance = this;
   sendEvent = xEventGroupCreate();
-  StartTask(EspNet, 2);
+  StartTask(EspNet);
 }
 
 EspNet::~EspNet() {
@@ -211,7 +208,7 @@ esp_err_t set_channel(uint8_t channel) {
   if (e == ESP_OK) {
     int elapsed = 0;
     while (new_channel != channel && elapsed < 500) {
-      vTaskDelay(pdMS_TO_TICKS(5));
+      delay(5);
       elapsed += 5;
     }
     if (new_channel != channel) {
@@ -401,27 +398,17 @@ void EspNet::task() {
 }
 
 void EspNet::checkMessages(Trv *trv) {
-  if (trv == NULL) {
-    ESP_LOGE(TAG, "checkMessages: trv is NULL");
-    return;
-  }
-  if (this->trv != NULL) {
-    ESP_LOGE(TAG, "checkMessages: trv is NOT NULL - re-entrant condition detected!");
-    return;
-  }
-  this->trv = trv;
+  setTrv(trv);
 
   // Wait for the background discovery/ping to complete
   wait();
 
   if (!bufferedMessage.empty()) {
-    trv->processNetMessage(bufferedMessage.c_str());
+    trv->processNetMessage(bufferedMessage.c_str()); // Will trv->wait() if necessary
     bufferedMessage.clear();
   }
 
   // If discovery hasn't settled on a hub, the task will yield.
   // We can add logic here if we need to do more after trv is available.
-
-  this->trv = NULL;
 }
 

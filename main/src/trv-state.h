@@ -37,6 +37,20 @@ typedef enum {
   NET_MODE_ZIGBEE
 } net_mode_t;
 
+// Write (read is possible, but never modified by the system)
+typedef struct trv_config_s {
+  float current_heating_setpoint;
+  float local_temperature_calibration;
+  esp_zb_zcl_thermostat_system_mode_t system_mode; // ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF/AUTO/HEAT/SLEEP
+  net_mode_t netMode; // NET_MODE_ESP_NOW expects mqttConfig to contain WIFI settings, NET_MODE_MQTT expects WIFI & NET_MODE_MQTT settings, NET_MODE_ZIGBEE expects no config
+  trv_mqtt_t mqttConfig;
+  ENCRYPTION_KEY passKey;
+  int sleep_time; // in seconds, 1 to 120
+  uint8_t resolution; // 0=9-bit, 1=10-bit, 2=11-bit, 3=12-bit
+  uint32_t debug_flags;
+  motor_params_t motor;
+} trv_config_t;
+
 typedef struct trv_state_s
 {
   uint32_t version;
@@ -49,19 +63,7 @@ typedef struct trv_state_s
     uint8_t is_charging;
     uint8_t position;
   } sensors;
-  struct {
-    // Write (read is possible, but never modified by the system)
-    float current_heating_setpoint;
-    float local_temperature_calibration;
-    esp_zb_zcl_thermostat_system_mode_t system_mode; // ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF/AUTO/HEAT/SLEEP
-    net_mode_t netMode; // NET_MODE_ESP_NOW expects mqttConfig to contain WIFI settings, NET_MODE_MQTT expects WIFI & NET_MODE_MQTT settings, NET_MODE_ZIGBEE expects no config
-    trv_mqtt_t mqttConfig;
-    ENCRYPTION_KEY passKey;
-    int sleep_time; // in seconds, 1 to 120
-    uint8_t resolution; // 0=9-bit, 1=10-bit, 2=11-bit, 3=12-bit
-    int _reserved;
-    motor_params_t motor;
-  } config;
+  trv_config_t config;
 } trv_state_t;
 
 class Trv: public WithTask
@@ -84,11 +86,13 @@ protected:
   void saveState();
   void task();
   const trv_state_t &getInternalState(bool fast);
+  void setDebugFlags(uint32_t flags);
 
 public:
   Trv();
   virtual ~Trv();
   const trv_state_t &getState(bool fast);
+  const trv_config_t &getConfig(); // Doesn't wait, since config isn't asynchronously
   void setHeatingSetpoint(float temp);
   void setSystemMode(esp_zb_zcl_thermostat_system_mode_t mode);
   void setTempCalibration(float temp);

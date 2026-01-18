@@ -21,6 +21,7 @@ FIELD(unpair);
 FIELD(backoff_ms);
 FIELD(stall_ms);
 FIELD(motor_reversed);
+FIELD(debug_flags);
 
 const char* Trv::writeable[] = {
     field_current_heating_setpoint,
@@ -32,6 +33,7 @@ const char* Trv::writeable[] = {
     field_backoff_ms,
     field_stall_ms,
     field_motor_reversed,
+    field_debug_flags,
     NULL
 };
 
@@ -47,6 +49,7 @@ void Trv::processNetMessage(const char *json) {
   cJSON *local_temperature_calibration = cJSON_GetObjectItem(root, field_local_temperature_calibration);
   cJSON *system_mode = cJSON_GetObjectItem(root, field_system_mode);
   cJSON *sleep_time = cJSON_GetObjectItem(root, field_sleep_time);
+  cJSON *debug_flags = cJSON_GetObjectItem(root, field_debug_flags);
   cJSON *resolution = cJSON_GetObjectItem(root, field_resolution);
   cJSON *unpair = cJSON_GetObjectItem(root, field_unpair);
   cJSON *stall_ms = cJSON_GetObjectItem(root, field_stall_ms);
@@ -76,6 +79,9 @@ void Trv::processNetMessage(const char *json) {
 
   if (cJSON_IsNumber(sleep_time)) {
     setSleepTime(sleep_time->valueint);
+  }
+  if (cJSON_IsNumber(debug_flags)) {
+    setDebugFlags(debug_flags->valueint);
   }
 
   if (cJSON_IsNumber(resolution)) {

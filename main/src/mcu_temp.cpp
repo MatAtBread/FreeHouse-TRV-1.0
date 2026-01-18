@@ -90,6 +90,7 @@ float McuTempSensor::read() {
 }
 
 void McuTempSensor::task() {
+  delay(10);
   mcu_temp_init();
   temp = mcu_temp_read();
   ESP_LOGI(TAG, "MCU temp: %f", temp);
