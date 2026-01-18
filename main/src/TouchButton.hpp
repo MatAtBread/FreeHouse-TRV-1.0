@@ -1,7 +1,8 @@
 #ifndef TOUCH_BUTTON_HPP
 #define TOUCH_BUTTON_HPP
 
-#include "WithTask.h"
+#include "trv.h"
+// #include "WithTask.hpp"
 #include "common/gpio/gpio.hpp"
 #include "esp_log.h"
 #include "pins.h"
@@ -11,11 +12,11 @@
 // period.
 typedef enum { WAIT, PRESSED, NOT_PRESSED } TouchState;
 
-class TouchButton : protected WithTask {
+class TouchButton /*: protected WithTask */ {
 protected:
   TouchState state;
 
-  void task() override {
+  void task() {
     for (int i = 0;; i++) {
       auto n = GPIO::analogRead(TOUCH_PIN);
       ESP_LOGI("TRV", "Touch test %d", n);
@@ -28,20 +29,21 @@ protected:
         state = PRESSED;
         return;
       }
-      vTaskDelay(70 / portTICK_PERIOD_MS);
+      delay(70);
     }
   }
 
 public:
-  TouchButton() : WithTask() { reset(); }
+  TouchButton() /*: WithTask */{ reset(); }
   bool pressed() {
-    wait();
+    // wait();
     return state == PRESSED;
   };
   void reset() {
-    wait();
+    // wait();
     state = WAIT;
-    StartTask(TouchButton);
+    // StartTask(TouchButton);
+    task();
   }
 };
 

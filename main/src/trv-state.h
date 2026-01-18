@@ -3,7 +3,7 @@
 
 #include <string>
 
-#include "WithTask.h"
+#include "WithTask.hpp"
 #include "trv.h"
 
 #include "BatteryMonitor.h"
@@ -82,7 +82,6 @@ protected:
   void doUpdate();
   void checkAutoState();
   void saveState();
-  static float getMcuTemp();
   void task();
   const trv_state_t &getInternalState(bool fast);
 

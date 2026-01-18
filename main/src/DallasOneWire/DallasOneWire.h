@@ -1,7 +1,7 @@
 #ifndef DALLAS_ONE_WIRE_H
 #define DALLAS_ONE_WIRE_H
 
-#include "../WithTask.h"
+#include "../WithTask.hpp"
 
 extern "C" {
 #include "onewire.h"

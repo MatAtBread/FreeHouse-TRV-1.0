@@ -2,7 +2,7 @@
 #define MOTOR_CONTROLLER_H
 
 #include "BatteryMonitor.h"
-#include "WithTask.h"
+#include "WithTask.hpp"
 
 typedef struct motor_params_s {
   bool reversed;

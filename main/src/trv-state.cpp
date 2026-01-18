@@ -4,7 +4,7 @@
 #include <sstream>
 
 #include "trv-state.h"
-#include "mcu_temp.h"
+#include "mcu_temp.hpp"
 #include "pins.h"
 #include "helpers.h"
 #include <net/esp-now.hpp>
@@ -62,15 +62,7 @@ uint32_t Trv::stateVersion() { return globalState.version; }
     ESP_LOGI(TAG, "Read state: %u bytes version %lu", r, state.version);\
   }
 
-static float mcuTempCache = -1000.0;
-float Trv::getMcuTemp() {
-  if (mcuTempCache < -999.0) {
-    mcu_temp_init();
-    mcuTempCache = mcu_temp_read();
-    mcu_temp_deinit();
-  }
-  return mcuTempCache;
-}
+static McuTempSensor* mcuTempSensor = NULL;
 
 // On construction, the state is guaranteed to be valid, and asynchronously the sensors, etc are initialized
 Trv::Trv() {
@@ -107,6 +99,7 @@ Trv::Trv() {
 
 void Trv::task() {
   // Get the sensor values
+  if (!mcuTempSensor) mcuTempSensor = new McuTempSensor();
   tempSensor = new DallasOneWire(globalState.sensors.sensor_temperature, globalState.config.resolution);
   motor = new MotorController(battery, globalState.sensors.position, globalState.config.motor);
   if (mustCalibrate) {
@@ -141,12 +134,11 @@ void Trv::setSleepTime(int seconds) {
 }
 
 std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
-  ESP_LOGI(TAG, "MCU temp: %f", getMcuTemp());
-
+  const auto mcuTemp = mcuTempSensor->read();
   std::stringstream json;
   json << "{";
   if (rssi) json << "\"rssi\":" << rssi << ",";
-  json << "\"mcu_temperature\":" << getMcuTemp() << ","
+  json << "\"mcu_temperature\":" << mcuTemp << ","
     "\"local_temperature\":" << s.sensors.local_temperature << ","
     "\"sensor_temperature\":" << s.sensors.sensor_temperature << ","
     "\"battery_percent\":" << (int)s.sensors.battery_percent << ","

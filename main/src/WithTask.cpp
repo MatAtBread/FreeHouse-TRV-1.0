@@ -1,4 +1,4 @@
-#include "WithTask.h"
+#include "WithTask.hpp"
 #include "../trv.h"
 
 #include "esp_log.h"
@@ -38,7 +38,7 @@ void WithTask::taskRunner(void *p) {
   vTaskDelete(NULL);
 }
 
-EventGroupHandle_t WithTask::startTask(const char *name, int stackSize, int priority) {
+EventGroupHandle_t WithTask::startTask(const char *name, int priority, int stackSize) {
   spinlock_acquire(&spinlock, SPINLOCK_WAIT_FOREVER);
 
   // Ensure anyTasks is initialized (redundant safety)

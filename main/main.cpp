@@ -8,7 +8,7 @@
 #include "nvs_flash.h"
 #include "pins.h"
 #include "src/CaptiveWifi.h"
-#include "src/WithTask.h"
+#include "src/WithTask.hpp"
 #include "src/trv-state.h"
 #include "trv.h"
 #include "src/TouchButton.hpp"

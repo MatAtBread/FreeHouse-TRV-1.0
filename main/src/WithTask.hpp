@@ -40,7 +40,7 @@ public:
                    : NOT_RUNNING;
   }
 
-  EventGroupHandle_t startTask(const char *name, int stackSize = 8192, int priority = 1);
+  EventGroupHandle_t startTask(const char *name, int priority = 2, int stackSize = 8192);
 
   // Pure virtual function to be implemented by derived classes
   virtual void task() = 0;

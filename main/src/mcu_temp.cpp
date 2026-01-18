@@ -1,26 +1,19 @@
-#include "esp_log.h"
+#include "src/trv-state.h"
+extern "C" {
 #include "driver/temperature_sensor.h"
+extern int16_t temp_sensor_get_raw_value(bool *range_changed);
+}
 
-#include "hal/misc.h"
-#include "soc/apb_saradc_struct.h"
-#include "soc/apb_saradc_reg.h"
-
-#include "hal/temperature_sensor_ll.h"
-
-#include "../trv.h"
-
-#include "mcu_temp.h"
+#include "mcu_temp.hpp"
 
 static temperature_sensor_handle_t temp_handle = NULL;
 
-void mcu_temp_init() {
+static void mcu_temp_init() {
   temperature_sensor_config_t temp_sensor_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(-10, 80);
   ESP_ERROR_CHECK(temperature_sensor_install(&temp_sensor_config, &temp_handle));
 }
 
-float mcu_temp_read() {
-  extern int16_t temp_sensor_get_raw_value(bool *range_changed);
-
+static float mcu_temp_read() {
   // Enable temperature sensor
   ESP_ERROR_CHECK(temperature_sensor_enable(temp_handle));
   bool range_changed;
@@ -40,7 +33,7 @@ float mcu_temp_read() {
   return (float)v; //tsens_out;
 }
 
-void mcu_temp_deinit() {
+static void mcu_temp_deinit() {
   temperature_sensor_uninstall(temp_handle);
 }
 
@@ -73,3 +66,27 @@ static void linear_regression(const float *x, const float *y, int n, float *slop
   *intercept = (sum_y - (*slope) * sum_x) / n;
 }
   */
+
+  McuTempSensor::McuTempSensor() {
+    //StartTask(McuTempSensor, 1);
+  }
+  McuTempSensor::~McuTempSensor() {
+  }
+  float McuTempSensor::read() {
+    if (temp < 0) {
+      mcu_temp_init();
+      temp = mcu_temp_read();
+      ESP_LOGI(TAG, "MCU temp: %f", temp);
+      mcu_temp_deinit();
+      //wait();
+    }
+    return temp;
+  }
+  /*
+  void McuTempSensor::task() {
+    mcu_temp_init();
+    temp = mcu_temp_read();
+    ESP_LOGI(TAG, "MCU temp: %f", temp);
+    mcu_temp_deinit();
+  }
+*/

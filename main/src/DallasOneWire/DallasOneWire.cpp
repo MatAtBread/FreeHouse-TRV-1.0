@@ -28,7 +28,7 @@ DallasOneWire::DallasOneWire(float& temp, uint8_t resolution) : temp(temp), reso
     ESP_LOGW(TAG, "DallasOneWire: FAILED TO INIT DS18B20");
     return;
   }
-  StartTask(DallasOneWire, 2500, 2);
+  StartTask(DallasOneWire);
 }
 
 DallasOneWire::~DallasOneWire() {
@@ -59,7 +59,7 @@ void DallasOneWire::setResolution(uint8_t res /* 0-3 */) {
   ow_send(&ow, OW_SKIP_ROM);
   ow_send(&ow, DS18B20_COPY_SCRATCHPAD);
   do {
-    delay(1);
+    delay(2);
   } while (ow_read(&ow) == 0);
   ESP_LOGI(TAG, "DallasOneWire: Set resolution complete");
   if (ow_reset(&ow) != ESP_OK) goto fail;
@@ -90,7 +90,7 @@ void DallasOneWire::task() {
   ow_send(&ow, OW_SKIP_ROM);
   ow_send(&ow, DS18B20_CONVERT_T);
   do {
-    delay(1);
+    delay(2);
   } while (ow_read(&ow) == 0);
 
   if (ow_reset(&ow) != ESP_OK) goto fail;
