@@ -168,7 +168,7 @@ EspNet::EspNet() : trv(NULL) {
   ESP_LOGI(TAG, "Init EspNet");
   instance = this;
   sendEvent = xEventGroupCreate();
-  StartTask(EspNet);
+  StartTask(EspNet, 2);
 }
 
 EspNet::~EspNet() {

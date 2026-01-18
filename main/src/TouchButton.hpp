@@ -2,7 +2,7 @@
 #define TOUCH_BUTTON_HPP
 
 #include "trv.h"
-// #include "WithTask.hpp"
+#include "WithTask.hpp"
 #include "common/gpio/gpio.hpp"
 #include "esp_log.h"
 #include "pins.h"
@@ -12,9 +12,9 @@
 // period.
 typedef enum { WAIT, PRESSED, NOT_PRESSED } TouchState;
 
-class TouchButton /*: protected WithTask */ {
+class TouchButton : protected WithTask {
 protected:
-  TouchState state;
+  TouchState state = WAIT;
 
   void task() {
     for (int i = 0;; i++) {
@@ -34,16 +34,15 @@ protected:
   }
 
 public:
-  TouchButton() /*: WithTask */{ reset(); }
+  TouchButton() { StartTask(TouchButton); }
   bool pressed() {
-    // wait();
+    wait();
     return state == PRESSED;
   };
   void reset() {
-    // wait();
+    wait();
     state = WAIT;
-    // StartTask(TouchButton);
-    task();
+    StartTask(TouchButton);
   }
 };
 
