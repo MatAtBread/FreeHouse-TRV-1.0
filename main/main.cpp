@@ -104,7 +104,7 @@ extern "C" void app_main() {
   GPIO::pinMode(LED_BUILTIN, OUTPUT);
   GPIO::digitalWrite(LED_BUILTIN, false);
   esp_log_level_set("*", ESP_LOG_WARN);
-  //esp_log_level_set("wifi", ESP_LOG_ERROR);
+  esp_log_level_set("wifi", ESP_LOG_ERROR);
 
   auto wakeCause = esp_sleep_get_wakeup_cause();
   auto resetCause = esp_reset_reason();
@@ -132,7 +132,7 @@ extern "C" void app_main() {
   GPIO::pinMode(TOUCH_PIN, INPUT);
 
   esp_sleep_enable_timer_wakeup(dreamSecs * 1000000ULL);
-  ESP_LOGW(TAG, "TRV device '%s' dbg=0x%04x. Deep sleep %u secs\n", Trv::deviceName(), debugFlag(DEBUG_ALL), dreamSecs);
+  ESP_LOGW(TAG, "TRV %s device '%s' dbg=0x%04x. Deep sleep %u secs\n", versionDetail, Trv::deviceName(), debugFlag(DEBUG_ALL), dreamSecs);
 
   esp_deep_sleep_start();
 }
