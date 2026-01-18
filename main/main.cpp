@@ -34,9 +34,8 @@ extern "C" void app_main() {
   const auto app = esp_app_get_description();
   snprintf((char*)versionDetail, sizeof versionDetail, "%s %s %s",
            app->version, app->date, app->time);
-  ESP_LOGI(TAG, "Build: %s", versionDetail);
-  ESP_LOGI(TAG, "Wake: %d reset: %d count: %d", wakeCause, resetCause,
-           wakeCount);
+  ESP_LOGI(TAG, "Build: %s. Wake: %d reset: %d count: %d",
+    versionDetail, wakeCause, resetCause, wakeCount);
 
   esp_err_t ret = nvs_flash_init();
   if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
@@ -49,6 +48,7 @@ extern "C" void app_main() {
   ESP_ERROR_CHECK(esp_event_loop_create_default());
 
   Trv trv; // Loads static state from FS
+  ESP_LOGI(TAG, "TRV device '%s'", trv.deviceName());
   EspNet net; // Start Wi-Fi based on Trv state (loaded above)
 
   if (trv.flatBattery() && !trv.is_charging()) {
