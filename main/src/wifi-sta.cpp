@@ -96,7 +96,7 @@ void WiFiStation::wifi_init_sta(void) {
   } else if (bits & WIFI_FAIL_BIT) {
     ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s", ssid, password);
   } else {
-    ESP_LOGE(TAG, "UNEXPECTED EVENT");
+    ESP_LOGE(TAG, "UNEXPECTED EVENT: bits 0x%08x", bits);
   }
   ESP_LOGI(TAG, "wifi_init_sta finished.");
 }

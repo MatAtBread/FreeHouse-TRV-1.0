@@ -25,6 +25,12 @@ uint32_t woken() {
   Trv trv; // Loads static state from FS
   if (debugFlag(DEBUG_LOG_INFO))
     esp_log_level_set(TAG, ESP_LOG_INFO);
+  if (debugFlag(DEBUG_DELAY_LOGGING)) {
+    for (int i=10; i; i--) {
+      ESP_LOGW(TAG, "Delaying for debugger attach: %d", i);
+      delay(500); // For attaching debugger
+    }
+  }
 
   if (trv.flatBattery() && !trv.is_charging()) {
     ESP_LOGW(TAG, "Battery exhausted");
@@ -33,8 +39,6 @@ uint32_t woken() {
     return 0x7FFFFFFF;
   }
 
-  GPIO::pinMode(LED_BUILTIN, OUTPUT);
-  GPIO::digitalWrite(LED_BUILTIN, false);
   EspNet net; // Start Wi-Fi based on Trv state (loaded above)
 
   uint32_t dreamSecs = 1;
@@ -74,6 +78,11 @@ uint32_t woken() {
   }
   WithTask::waitForAllTasks();
   net.sendStateToHub(&trv);
+  if (trv.requiresNetworkControl()) {
+    // We have to do this incase there's a pending OTA request executed by the TRV desctructor
+    // The reason we don't always do this is to save power/time when not needed
+    net.deinit();
+  }
 
   uint64_t ext1WakeMask = (1ULL << TOUCH_PIN);
   if (!trv.is_charging()) {
@@ -88,14 +97,14 @@ uint32_t woken() {
   // an RTC_GPIO. On Rev3.2, the CHARGIBG pin is connected to GPIO2, so we can use that.
   esp_sleep_enable_ext1_wakeup(ext1WakeMask, ESP_EXT1_WAKEUP_ANY_HIGH);
 
-  GPIO::digitalWrite(LED_BUILTIN, true);
-  GPIO::pinMode(TOUCH_PIN, INPUT);
   return dreamSecs;
 }
 
 extern "C" void app_main() {
+  GPIO::pinMode(LED_BUILTIN, OUTPUT);
+  GPIO::digitalWrite(LED_BUILTIN, false);
   esp_log_level_set("*", ESP_LOG_WARN);
-  esp_log_level_set("wifi", ESP_LOG_ERROR);
+  //esp_log_level_set("wifi", ESP_LOG_ERROR);
 
   auto wakeCause = esp_sleep_get_wakeup_cause();
   auto resetCause = esp_reset_reason();
@@ -118,6 +127,9 @@ extern "C" void app_main() {
   ESP_ERROR_CHECK(esp_event_loop_create_default());
 
   auto dreamSecs = woken();
+
+  GPIO::digitalWrite(LED_BUILTIN, true);
+  GPIO::pinMode(TOUCH_PIN, INPUT);
 
   esp_sleep_enable_timer_wakeup(dreamSecs * 1000000ULL);
   ESP_LOGW(TAG, "TRV device '%s' dbg=0x%04x. Deep sleep %u secs\n", Trv::deviceName(), debugFlag(DEBUG_ALL), dreamSecs);

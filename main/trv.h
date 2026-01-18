@@ -28,13 +28,17 @@ extern char versionDetail[];
 
 #ifdef __cplusplus
 }
-#endif
 
+#include <string>
+extern std::string debugNetworkInfo();
 enum DebugFlags {
   DEBUG_LOG_INFO = 0x01,
   DEBUG_MOTOR_CONTROL = 0x02,
+  DEBUG_DELAY_LOGGING = 0x04,
   DEBUG_ALL = 0x7FFFFFFF
 };
 extern uint32_t debugFlag(DebugFlags mask);
+#endif
+
 #endif // TRV_H
 

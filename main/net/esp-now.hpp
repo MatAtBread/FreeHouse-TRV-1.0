@@ -16,6 +16,7 @@ protected:
 public:
   EspNet();
   ~EspNet();
+  void deinit();
   void setTrv(Trv *trv);
   void sendStateToHub(Trv *trv); // Calls setTrv()
   void checkMessages(Trv *trv); // Calls setTrv()

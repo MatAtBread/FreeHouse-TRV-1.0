@@ -106,6 +106,7 @@ public:
   void calibrate();
   void testMode(TouchButton &touchButton);
   void processNetMessage(const char *json);
+  bool requiresNetworkControl();
 
   static const char* deviceName();
   static const uint8_t* getPassKey();

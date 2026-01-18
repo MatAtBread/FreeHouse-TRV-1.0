@@ -113,6 +113,10 @@ void Trv::task() {
   getInternalState(true); // Lazily update temp
 }
 
+bool Trv::requiresNetworkControl() {
+  return otaUrl.length() > 0;
+}
+
 Trv::~Trv() {
   wait();
   if (configDirty) saveState(); // Update NVS if necessary

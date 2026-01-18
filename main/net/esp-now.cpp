@@ -19,9 +19,19 @@
 typedef uint8_t MACAddr[6];
 
 const MACAddr BROADCAST_ADDR = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-RTC_DATA_ATTR MACAddr hub = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-RTC_DATA_ATTR int wifiChannel = 0;
+RTC_DATA_ATTR static MACAddr hub = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+RTC_DATA_ATTR static int wifiChannel = 0;
 RTC_DATA_ATTR static signed int avgRssi = 0;
+
+// Hack to debug the latest connection info
+std::string debugNetworkInfo() {
+  std::stringstream ss;
+  char macStr[18];
+  snprintf(macStr, sizeof(macStr), MACSTR, MAC2STR(hub));
+  ss << "Hub: " << macStr << ", Channel: " << wifiChannel
+     << ", Avg RSSI: " << avgRssi;
+  return ss.str();
+}
 
 typedef struct {
   MACAddr mac;
@@ -168,17 +178,22 @@ EspNet::EspNet() : trv(NULL) {
   StartTask(EspNet);
 }
 
+void EspNet::deinit() {
+  ESP_LOGI(TAG, "De-init radio");
+  ESP_ERROR_CHECK(esp_now_deinit());
+  ESP_ERROR_CHECK(esp_wifi_stop());
+  ESP_ERROR_CHECK(dev_wifi_deinit());
+}
+
 EspNet::~EspNet() {
   instance = NULL;
   if (this->joinPhrase)
     free(this->joinPhrase);
   if (sendEvent)
     vEventGroupDelete(sendEvent);
+
   // Skip slow radio de-init before sleep; hardware power-down handles it faster.
-  // ESP_LOGI(TAG, "De-init radio");
-  // ESP_ERROR_CHECK(esp_now_deinit());
-  // ESP_ERROR_CHECK(esp_wifi_stop());
-  // ESP_ERROR_CHECK(dev_wifi_deinit());
+  // deinit();
 }
 
 static volatile uint8_t new_channel = 0xFF; // Invalid channel

@@ -289,8 +289,8 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t *req) {
           "<tr><td>Motor reversed</td>"
               "<td><input type=\"checkbox\" " << (state.config.motor.reversed ? "checked":"") << " name='motor_reversed' onchange='processMessage(this,undefined,this.checked)'></td>"
           "</tr>\n"
-          "<tr><td>Sleep time</td>"
-            "<td><input style='width:6em;' type='number' value='" << (state.config.debug_flags) << "' name='debug_flags' onchange='processMessage(this)'>s</td>"
+          "<tr><td>Debug flags</td>"
+            "<td><input style='width:6em;' type='number' value='" << (state.config.debug_flags) << "' name='debug_flags' onchange='processMessage(this)'></td>"
           "</tr>\n"
           "</table>\n"
 
@@ -317,6 +317,7 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t *req) {
         "<input type='file' id='firmware'>"
         "<button onclick='ota_upload(this)'>Update</button>"
         "<div>Current: " << versionDetail << "</div>"
+        "<div>" << debugNetworkInfo() << "</div>"
         "</body></html>";
     }
     httpd_resp_send(req, html.str().c_str(), HTTPD_RESP_USE_STRLEN);
