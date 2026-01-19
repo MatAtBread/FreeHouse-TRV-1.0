@@ -85,14 +85,16 @@ void DallasOneWire::task() {
     ow_send(&ow, targetConfig);
   }
 
+  uint32_t t;
   if (ow_reset(&ow) != ESP_OK) goto fail;
 
   ow_send(&ow, OW_SKIP_ROM);
   ow_send(&ow, DS18B20_CONVERT_T);
+  t = millis();
   do {
     delay(2);
   } while (ow_read(&ow) == 0);
-
+  t = millis() - t;
   if (ow_reset(&ow) != ESP_OK) goto fail;
   ow_send(&ow, OW_SKIP_ROM);
   ow_send(&ow, DS18B20_READ_SCRATCHPAD);
@@ -108,7 +110,7 @@ void DallasOneWire::task() {
     goto fail;
   } else {
     temp = (signed)(data) / 16.0;
-    ESP_LOGI(TAG, "Temp is %f", temp);
+    ESP_LOGI(TAG, "Temp is %f, r=0x%02x [0x%02x 0x%02x 0x%02x], t=%lu", temp, targetConfig, scratchpad[2], scratchpad[3], scratchpad[4], t);
   }
   return;
 
