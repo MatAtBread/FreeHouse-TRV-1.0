@@ -167,12 +167,13 @@ std::string Trv::asJson(const trv_state_t& s, signed int rssi) {
     "\"local_temperature_calibration\":" << s.config.local_temperature_calibration << ","
     "\"system_mode\":\"" << systemModes[s.config.system_mode] << "\","
     "\"sleep_time\":" << s.config.sleep_time << ","
-    "\"debug_flags\":" << s.config.debug_flags << ","
     "\"resolution\":" << (0.5 / (float)(1 << s.config.resolution)) << ","
-    "\"unpair\":false,"
     "\"backoff_ms\":" << s.config.motor.backoff_ms << ","
     "\"stall_ms\":" << s.config.motor.stall_ms << ","
-    "\"motor_reversed\":" << (s.config.motor.reversed ? "true":"false") <<
+    "\"motor_reversed\":" << (s.config.motor.reversed ? "true":"false") << ","
+    "\"debug_flags\":" << s.config.debug_flags << ","
+    "\"unpair\":false,"
+    "\"calibrate\":false"
     "}";
 
   return json.str();

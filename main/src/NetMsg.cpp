@@ -17,11 +17,12 @@ FIELD(local_temperature_calibration);
 FIELD(system_mode);
 FIELD(sleep_time);
 FIELD(resolution);
-FIELD(unpair);
 FIELD(backoff_ms);
 FIELD(stall_ms);
 FIELD(motor_reversed);
 FIELD(debug_flags);
+FIELD(unpair);
+FIELD(calibrate);
 
 const char* Trv::writeable[] = {
     field_current_heating_setpoint,
@@ -29,11 +30,12 @@ const char* Trv::writeable[] = {
     field_system_mode,
     field_sleep_time,
     field_resolution,
-    field_unpair,
     field_backoff_ms,
     field_stall_ms,
     field_motor_reversed,
     field_debug_flags,
+    field_unpair,
+    field_calibrate,
     NULL
 };
 
@@ -51,12 +53,14 @@ void Trv::processNetMessage(const char *json) {
   cJSON *sleep_time = cJSON_GetObjectItem(root, field_sleep_time);
   cJSON *debug_flags = cJSON_GetObjectItem(root, field_debug_flags);
   cJSON *resolution = cJSON_GetObjectItem(root, field_resolution);
-  cJSON *unpair = cJSON_GetObjectItem(root, field_unpair);
   cJSON *stall_ms = cJSON_GetObjectItem(root, field_stall_ms);
   cJSON *backoff_ms = cJSON_GetObjectItem(root, field_backoff_ms);
   cJSON *motor_reversed = cJSON_GetObjectItem(root, field_motor_reversed);
+  cJSON *unpair = cJSON_GetObjectItem(root, field_unpair);
+  cJSON *calibrate = cJSON_GetObjectItem(root, field_calibrate);
 
   auto unpairRequest = cJSON_IsTrue(unpair);
+  auto calibrateRequest = cJSON_IsTrue(calibrate);
 
   if (cJSON_IsString(system_mode) && (system_mode->valuestring != NULL)) {
     for (esp_zb_zcl_thermostat_system_mode_t mode = ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF;
@@ -116,6 +120,9 @@ void Trv::processNetMessage(const char *json) {
   // Free the root object
   cJSON_Delete(root);
 
+  if (calibrateRequest) {
+    this->calibrate();
+  }
   if (unpairRequest) {
     doUnpair();
   }
