@@ -52,17 +52,18 @@ esp_err_t add_peer(const uint8_t *mac, uint8_t channel) {
                                      : esp_now_add_peer)(&peer);
 }
 
-void EspNet::setTrv(Trv *trv) {
-  if (trv == NULL) {
-    ESP_LOGE(TAG, "sendStateToHub: trv is NULL");
+void EspNet::setTrv(Trv *t) {
+  if (t == NULL) {
+    ESP_LOGE(TAG, "setTrv: trv is NULL");
   }
-  if (this->trv != NULL && this->trv != trv) {
+  if (trv != NULL && trv != t) {
     ESP_LOGE(TAG, "sendStateToHub: trv is NOT NULL - re-entrant condition detected!");
   }
+  trv = t;
 }
 
-void EspNet::sendStateToHub(Trv *trv) {
-  setTrv(trv);
+void EspNet::sendStateToHub(Trv *t) {
+  setTrv(t);
   const trv_state_t &state = trv->getState(false); // causes a wait()
 
   wait(); // Ensure discovery is finished
@@ -100,6 +101,7 @@ void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info,
   avgRssi = avgRssi ? (avgRssi + esp_now_info->rx_ctrl->rssi) / 2
                     : esp_now_info->rx_ctrl->rssi;
 
+  // JSON message received
   if (data[0] == '{') {
     // We got some data
     if (trv == NULL) {
@@ -111,7 +113,11 @@ void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info,
       return;
     }
     trv->processNetMessage((const char *)data);
-  } else if (memcmp(data, "PACK", 4) == 0) {
+    return;
+  }
+
+  // Pairing acknowledgement received
+  if (memcmp(data, "PACK", 4) == 0) {
     if (nextPair == NULL) {
       ESP_LOGI(TAG, "Pairing finished!");
       return;
@@ -133,15 +139,18 @@ void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info,
     auto p = nextPair++;
     p->rx = *esp_now_info->rx_ctrl;
     memcpy(p->mac, esp_now_info->src_addr, sizeof(MACAddr));
-  } else {
-    if (wifiChannel > 0 && (wifiChannel == esp_now_info->rx_ctrl->channel ||
-                            wifiChannel == esp_now_info->rx_ctrl->second)) {
-      ESP_LOGW(TAG, "NACK? from hub " MACSTR " on channel %d+%d. Disconnecting",
-               MAC2STR(esp_now_info->src_addr), esp_now_info->rx_ctrl->channel,
-               esp_now_info->rx_ctrl->second);
-      memcpy(hub, BROADCAST_ADDR, sizeof(hub));
-      wifiChannel = 0;
-    }
+    return;
+  }
+
+  // NACK or other unknown message received
+  if (wifiChannel > 0 && (wifiChannel == esp_now_info->rx_ctrl->channel ||
+                          wifiChannel == esp_now_info->rx_ctrl->second)) {
+    ESP_LOGW(TAG, "NACK? from hub " MACSTR " on channel %d+%d. Disconnecting",
+             MAC2STR(esp_now_info->src_addr), esp_now_info->rx_ctrl->channel,
+             esp_now_info->rx_ctrl->second);
+    memcpy(hub, BROADCAST_ADDR, sizeof(hub));
+    wifiChannel = 0;
+    return;
   }
 }
 
@@ -412,8 +421,8 @@ void EspNet::task() {
   }
 }
 
-void EspNet::checkMessages(Trv *trv) {
-  setTrv(trv);
+void EspNet::checkMessages(Trv *t) {
+  setTrv(t);
 
   // Wait for the background discovery/ping to complete
   wait();

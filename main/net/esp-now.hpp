@@ -11,13 +11,13 @@ protected:
   EventGroupHandle_t sendEvent;
   std::string bufferedMessage;
 
+  void setTrv(Trv *trv);
   void task() override;
 
 public:
   EspNet();
   ~EspNet();
   void deinit();
-  void setTrv(Trv *trv);
   void sendStateToHub(Trv *trv); // Calls setTrv()
   void checkMessages(Trv *trv); // Calls setTrv()
   bool pendingMessages() const {
