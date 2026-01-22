@@ -92,20 +92,19 @@ void EspNet::sendStateToHub(Trv *t) {
 }
 
 void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info,
-                                   const uint8_t *data, int data_len) {
-  ESP_LOGI(TAG, "recv-now: src:" MACSTR " dst: " MACSTR ", ch %u+%u, rssi %d: %.*s",
-           MAC2STR(esp_now_info->src_addr), MAC2STR(esp_now_info->des_addr),
-           esp_now_info->rx_ctrl->channel, esp_now_info->rx_ctrl->second,
-           esp_now_info->rx_ctrl->rssi, data_len, data);
-
+                                   const uint8_t *data, int data_len)
+{
   avgRssi = avgRssi ? (avgRssi + esp_now_info->rx_ctrl->rssi) / 2
                     : esp_now_info->rx_ctrl->rssi;
 
   // JSON message received
-  if (data[0] == '{') {
+  if (data[0] == '{')
+  {
     // We got some data
-    if (trv == NULL) {
-      if (!bufferedMessage.empty()) {
+    if (trv == NULL)
+    {
+      if (!bufferedMessage.empty())
+      {
         ESP_LOGW(TAG, "recv-now: Overwriting buffered message: '%s'", bufferedMessage.c_str());
       }
       ESP_LOGI(TAG, "recv-now: Message received but trv is NULL (buffering)");
@@ -117,20 +116,26 @@ void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info,
   }
 
   // Pairing acknowledgement received
-  if (memcmp(data, "PACK", 4) == 0) {
-    if (nextPair == NULL) {
+  if (memcmp(data, "PACK", 4) == 0)
+  {
+    if (nextPair == NULL)
+    {
       ESP_LOGI(TAG, "Pairing finished!");
       return;
     }
-    if (nextPair - pairInfo >= sizeof(pairInfo) / sizeof(pairing_info_t)) {
+    if (nextPair - pairInfo >= sizeof(pairInfo) / sizeof(pairing_info_t))
+    {
       nextPair = NULL;
       ESP_LOGW(TAG, "Pairing table full");
       return;
     }
     // Avoid duplicate macs
-    for (auto p = pairInfo; p < nextPair; p++) {
-      if (memcmp(p->mac, esp_now_info->src_addr, sizeof(MACAddr)) == 0) {
-        if (p->rx.rssi < esp_now_info->rx_ctrl->rssi) {
+    for (auto p = pairInfo; p < nextPair; p++)
+    {
+      if (memcmp(p->mac, esp_now_info->src_addr, sizeof(MACAddr)) == 0)
+      {
+        if (p->rx.rssi < esp_now_info->rx_ctrl->rssi)
+        {
           p->rx = *esp_now_info->rx_ctrl;
         }
         return;
@@ -142,15 +147,35 @@ void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info,
     return;
   }
 
-  // NACK or other unknown message received
-  if (wifiChannel > 0 && (wifiChannel == esp_now_info->rx_ctrl->channel ||
-                          wifiChannel == esp_now_info->rx_ctrl->second)) {
-    ESP_LOGW(TAG, "NACK? from hub " MACSTR " on channel %d+%d. Disconnecting",
-             MAC2STR(esp_now_info->src_addr), esp_now_info->rx_ctrl->channel,
-             esp_now_info->rx_ctrl->second);
-    unpair();
+  if (memcmp(data, "JOIN", 4) == 0)
+  {
+    // We're not a hub/mesh. Just ignore this
+    ESP_LOGI(TAG, "Ignore JOIN: src:" MACSTR " dst: " MACSTR ", ch %u+%u, rssi %d",
+             MAC2STR(esp_now_info->src_addr), MAC2STR(esp_now_info->des_addr),
+             esp_now_info->rx_ctrl->channel, esp_now_info->rx_ctrl->second,
+             esp_now_info->rx_ctrl->rssi);
     return;
   }
+
+  if (memcmp(data, "NACK", 4) == 0)
+  {
+    if (wifiChannel > 0 && (wifiChannel == esp_now_info->rx_ctrl->channel ||
+                            wifiChannel == esp_now_info->rx_ctrl->second))
+    {
+      ESP_LOGW(TAG, "NACK from hub " MACSTR " on channel %d+%d. Disconnecting",
+               MAC2STR(esp_now_info->src_addr), esp_now_info->rx_ctrl->channel,
+               esp_now_info->rx_ctrl->second);
+      unpair();
+      return;
+    }
+  }
+
+  // Other unknown message received
+  ESP_LOGI(TAG, "?recv-now: src:" MACSTR " dst: " MACSTR ", ch %u+%u, rssi %d: %.*s",
+           MAC2STR(esp_now_info->src_addr), MAC2STR(esp_now_info->des_addr),
+           esp_now_info->rx_ctrl->channel, esp_now_info->rx_ctrl->second,
+           esp_now_info->rx_ctrl->rssi, data_len, data);
+  return;
 }
 
 void EspNet::data_send_callback(const uint8_t *mac_addr,
