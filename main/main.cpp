@@ -56,6 +56,7 @@ uint32_t woken() {
       case exit_status_t::POWER_OFF:
         ESP_LOGI(TAG, "Power off requested");
         dreamSecs = 0x7FFFFFFF;  // Forever
+        EspNet::unpair();
         break;
       case exit_status_t::CLOSED:
       case exit_status_t::NONE:
@@ -106,15 +107,13 @@ extern "C" void app_main() {
   esp_log_level_set("*", ESP_LOG_WARN);
   esp_log_level_set("wifi", ESP_LOG_ERROR);
 
-  auto wakeCause = esp_sleep_get_wakeup_cause();
-  auto resetCause = esp_reset_reason();
   wakeCount += 1;
 
   const auto app = esp_app_get_description();
   snprintf((char*)versionDetail, sizeof versionDetail, "%s %s %s",
            app->version, app->date, app->time);
   ESP_LOGI(TAG, "Build: %s. Wake: %d reset: %d count: %d",
-    versionDetail, wakeCause, resetCause, wakeCount);
+    versionDetail, esp_sleep_get_wakeup_cause(), esp_reset_reason(), wakeCount);
 
   esp_err_t ret = nvs_flash_init();
   if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||

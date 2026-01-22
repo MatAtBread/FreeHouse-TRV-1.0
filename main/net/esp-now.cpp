@@ -148,8 +148,7 @@ void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info,
     ESP_LOGW(TAG, "NACK? from hub " MACSTR " on channel %d+%d. Disconnecting",
              MAC2STR(esp_now_info->src_addr), esp_now_info->rx_ctrl->channel,
              esp_now_info->rx_ctrl->second);
-    memcpy(hub, BROADCAST_ADDR, sizeof(hub));
-    wifiChannel = 0;
+    unpair();
     return;
   }
 }
@@ -161,8 +160,7 @@ void EspNet::data_send_callback(const uint8_t *mac_addr,
   if (status != ESP_NOW_SEND_SUCCESS) {
     ESP_LOGW(TAG, "send-now: " MACSTR " %s", MAC2STR(mac_addr),
              "failed - diconnecting");
-    memcpy(hub, BROADCAST_ADDR, sizeof(hub));
-    wifiChannel = 0;
+    unpair();
   } else {
     ESP_LOGI(TAG, "send-now: " MACSTR " %s", MAC2STR(mac_addr), "ok");
   }
@@ -305,6 +303,7 @@ void EspNet::pair_with_hub() {
 
 void EspNet::unpair() {
   ESP_LOGI(TAG, "Unpairing from hub " MACSTR, MAC2STR(hub));
+  memcpy(hub, BROADCAST_ADDR, sizeof(hub));
   wifiChannel = 0;
 }
 
