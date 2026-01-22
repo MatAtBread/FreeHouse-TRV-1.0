@@ -184,6 +184,7 @@ void Trv::doUnpair() {
 }
 
 void Trv::saveState() {
+  globalState.sensors.position = motor->getValvePosition(); // Should be benign as MotorController is passed a reference to this value
   auto saved = fs->write("/trv/state", &globalState, sizeof(globalState));
   configDirty = !saved;
   ESP_LOGI(TAG, "saveState: %d", saved);
@@ -192,11 +193,13 @@ void Trv::saveState() {
 void Trv::setMotorParameters(const motor_params_t& params) {
   if (params.reversed == true || params.reversed == false) {
     if (globalState.config.motor.reversed != params.reversed) {
-      globalState.config.motor.reversed = params.reversed;
       wait();
+      globalState.config.motor.reversed = params.reversed;
+      configDirty = true;
       const auto pos = motor->getValvePosition();
+
       globalState.sensors.position = 50; // Invalidate position
-      motor->setValvePosition(pos ? 100 : 0);  // Re-apply current position to change direction
+      motor->setValvePosition(pos ? 100 : 0);  // Re-apply current position to change direction if necessary
     }
   }
   if (params.stall_ms > 0) {

@@ -132,7 +132,7 @@ extern "C" void app_main() {
   GPIO::pinMode(TOUCH_PIN, INPUT);
 
   esp_sleep_enable_timer_wakeup(dreamSecs * 1000000ULL);
-  ESP_LOGW(TAG, "TRV %s device '%s' dbg=0x%04x. Deep sleep %u secs\n", versionDetail, Trv::deviceName(), debugFlag(DEBUG_ALL), dreamSecs);
+  ESP_LOGW(TAG, FREEHOUSE_MODEL " (build %s) device '%s' dbg=0x%04x. Deep sleep %u secs\n", versionDetail, Trv::deviceName(), debugFlag(DEBUG_ALL), dreamSecs);
 
   esp_deep_sleep_start();
 }

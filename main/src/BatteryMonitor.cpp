@@ -3,7 +3,7 @@
 #include "../common/gpio/gpio.hpp"
 #include "BatteryMonitor.h"
 
-#define DISCHARGE_FLOOR 3300
+#define DISCHARGE_FLOOR 3200
 
 BatteryMonitor::BatteryMonitor() {
   GPIO::pinMode(CHARGING, INPUT);
