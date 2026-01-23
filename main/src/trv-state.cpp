@@ -305,21 +305,15 @@ void Trv::setSystemMode(esp_zb_zcl_thermostat_system_mode_t mode) {
   if (globalState.config.system_mode != mode) {
       configDirty = true;
   }
+  globalState.config.system_mode = mode;
+  wait();
   if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF) {
-    globalState.config.system_mode = mode;
-    wait();
     motor->setValvePosition(0);
   } else if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT) {
-    globalState.config.system_mode = mode;
-    wait();
     motor->setValvePosition(100);
   } else if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO) {
-    globalState.config.system_mode = mode;
-    wait();
     checkAutoState();
   } else if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP) {
-    globalState.config.system_mode = mode;
-    wait();
     // In sleep mode we just don't move the plunger at all
     motor->setValvePosition(-1); // Just stops the motor where it is
   }

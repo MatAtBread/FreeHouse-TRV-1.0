@@ -64,13 +64,12 @@ uint32_t woken() {
         break;
     }
   } else {
-    const auto config = trv.getConfig();
     net.checkMessages(&trv);
-    int checkEvery = 60 / config.sleep_time;
+    int checkEvery = 60 / trv.getConfig().sleep_time;
     ESP_LOGI(TAG, "checkForMessages %d / %d", messgageChecks, checkEvery);
     if (messgageChecks >= checkEvery) {
       // Every 60 seconds re-set the system-mode to ensure the TRV acts to correct things like motor time-outs or temperature changes
-      trv.setSystemMode(config.system_mode);
+      trv.setSystemMode(trv.getConfig().system_mode);
       messgageChecks = 0;
     } else {
       messgageChecks += 1;
