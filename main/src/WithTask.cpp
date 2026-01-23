@@ -51,7 +51,12 @@ void WithTask::taskRunner(void *p) {
   vTaskDelete(NULL);
 }
 
-EventGroupHandle_t WithTask::startTask(const char *name, int priority, int stackSize) {
+bool WithTask::startTask(const char *name, int priority, int stackSize) {
+  if (isRunning()) {
+    ESP_LOGI(TAG,"WithTask %s already running", name);
+    return false;
+  }
+
   spinlock_acquire(&spinlock, SPINLOCK_WAIT_FOREVER);
 
   // Ensure anyTasks is initialized (redundant safety)
@@ -80,21 +85,21 @@ EventGroupHandle_t WithTask::startTask(const char *name, int priority, int stack
   running = newGroup;
 
   if (xTaskCreate(taskRunner, name, stackSize, this, priority, nullptr) == pdPASS) {
-    return running;
-  } else {
-    // Task creation failed, revert state
-    if (newGroup)
-      vEventGroupDelete(newGroup);
-    running = NULL;
-
-    spinlock_acquire(&spinlock, SPINLOCK_WAIT_FOREVER);
-    numRunning--;
-    if (numRunning == 0) {
-      xEventGroupSetBits(anyTasks, WITHTASK_FINISHED);
-    }
-    spinlock_release(&spinlock);
-    return NULL;
+    return true;
   }
+
+  // Task creation failed, revert state
+  if (newGroup)
+    vEventGroupDelete(newGroup);
+  running = NULL;
+
+  spinlock_acquire(&spinlock, SPINLOCK_WAIT_FOREVER);
+  numRunning--;
+  if (numRunning == 0) {
+    xEventGroupSetBits(anyTasks, WITHTASK_FINISHED);
+  }
+  spinlock_release(&spinlock);
+  return false;
 }
 
 void WithTask::start() {

@@ -32,12 +32,13 @@ public:
   WithTask();
   virtual ~WithTask();
   WithTaskState wait(TickType_t delay = portMAX_DELAY);
-  EventGroupHandle_t startTask(const char *name, int priority = 2, int stackSize = 8192);
+  bool isRunning(TickType_t delay = 0) { return wait(delay) == TIMEOUT; }
+  bool startTask(const char *name, int priority = 2, int stackSize = 8192);
 
   // Pure virtual function to be implemented by derived classes
   virtual void task() = 0;
 };
-
+/*
 // Looks like a task, runs like a function. Can be used to reduce context
 // switching for SHORT tasks like McuTempSensor or TouchButton
 class SyncTask {
@@ -60,4 +61,5 @@ public:
     return state;
   }
 };
+*/
 #endif

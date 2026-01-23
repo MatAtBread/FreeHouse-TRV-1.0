@@ -58,7 +58,7 @@ void MotorController::setDirection(int dir) {
 }
 
 void MotorController::setValvePosition(int pos) {
-  ESP_LOGI(TAG, "MotorController::setValvePosition(%d) target=%d current=%d", pos, target, current);
+  ESP_LOGI(TAG, "MotorController::setValvePosition(%d) target=%d current=%d Task=%u", pos, target, current, isRunning());
   if (pos == -1) {
     target = current;
     setDirection(0);
