@@ -12,3 +12,24 @@ idf_component_register(
         "${BUILD_INFO_C}"
     INCLUDE_DIRS "."
 )
+
+# 1. Get the name of the current binary directory (last folder only)
+get_filename_component(CURRENT_BINARY_DIR_NAME "${CMAKE_BINARY_DIR}" NAME)
+
+# 2. Use a regex to check if it starts with "build-" and capture the rest
+if(CURRENT_BINARY_DIR_NAME MATCHES "^build-(.*)")
+    # CMAKE_MATCH_1 contains the text captured by the parentheses (.*)
+    set(MODEL_NAME ${CMAKE_MATCH_1})
+
+    add_compile_definitions(BUILD_FREEHOUSE_MODEL=${MODEL_NAME})
+
+    message(STATUS "Detected Build Model: ${MODEL_NAME}")
+else()
+    message(WARNING "Binary directory does not follow 'build-NAME' format. Skipping definition.")
+endif()
+
+# if(CMAKE_BINARY_DIR MATCHES "build-TRV1")
+#     add_compile_definitions(BUILD_FREEHOUSE_MODEL=TRV1)
+# elseif(CMAKE_BINARY_DIR MATCHES "build-TRV3")
+#     add_compile_definitions(BUILD_FREEHOUSE_MODEL=TRV3)
+# endif()

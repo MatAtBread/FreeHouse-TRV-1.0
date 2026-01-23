@@ -202,16 +202,14 @@ void dns_server_task(void *pvParameters) {
       ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
       break;
     }
-    ESP_LOGI(TAG, "Socket created");
 
     int err = bind(sock, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
     if (err < 0) {
       ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
     }
-    ESP_LOGI(TAG, "Socket bound, port %d", DNS_PORT);
 
     while (handle->started) {
-      ESP_LOGI(TAG, "Waiting for data");
+      ESP_LOGI(TAG, "DNS Waiting for data");
       struct sockaddr_in source_addr;  // Large enough for both IPv4 or IPv6
       socklen_t socklen = sizeof(source_addr);
       int len = recvfrom(sock, rx_buffer, sizeof(rx_buffer) - 1, 0, (struct sockaddr *)&source_addr, &socklen);

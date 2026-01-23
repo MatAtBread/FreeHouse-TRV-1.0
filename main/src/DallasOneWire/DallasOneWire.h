@@ -1,7 +1,7 @@
 #ifndef DALLAS_ONE_WIRE_H
 #define DALLAS_ONE_WIRE_H
 
-#include "../WithTask.h"
+#include "../WithTask.hpp"
 
 extern "C" {
 #include "onewire.h"
@@ -9,10 +9,10 @@ extern "C" {
 
 class DallasOneWire: public WithTask {
  protected:
-  uint8_t pin;
   OW ow;
   float& temp;
   bool configuring = false;
+  uint8_t resolution;
   /*
   00: 9-bit resolution (0.5°C, 93.75ms conversion time)
   01: 10-bit resolution (0.25°C, 187.5ms conversion time)
@@ -21,7 +21,7 @@ class DallasOneWire: public WithTask {
   */
 
  public:
-  DallasOneWire(const uint8_t pin, float &temp);
+  DallasOneWire(float &temp, uint8_t resolution);
   ~DallasOneWire();
   void setResolution(uint8_t res);
   float readTemp();

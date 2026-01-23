@@ -3,11 +3,8 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_wifi.h"
-#include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
-#include "lwip/err.h"
-#include "lwip/sys.h"
 #include "nvs_flash.h"
 #include "board.h"
 
@@ -99,7 +96,7 @@ void WiFiStation::wifi_init_sta(void) {
   } else if (bits & WIFI_FAIL_BIT) {
     ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s", ssid, password);
   } else {
-    ESP_LOGE(TAG, "UNEXPECTED EVENT");
+    ESP_LOGE(TAG, "UNEXPECTED EVENT: bits 0x%08x", bits);
   }
   ESP_LOGI(TAG, "wifi_init_sta finished.");
 }

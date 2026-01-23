@@ -36,7 +36,7 @@ esp_err_t ota_post_handler(httpd_req_t *req)
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Write Error");
             return ESP_FAIL;
         }
-        ESP_LOGI(TAG, "OTA data remaiining: %d", remaining);
+        ESP_LOGI(TAG, "OTA data remaining: %d", remaining);
         remaining -= received;
     }
 

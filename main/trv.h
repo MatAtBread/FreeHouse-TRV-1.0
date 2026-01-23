@@ -1,10 +1,11 @@
-#undef MODEL_L1 // Set for Lockshield hardware, unset for TRV hardware
-
-#ifdef MODEL_L1
-#define FREEHOUSE_MODEL "TRV4"
-#else
-#define FREEHOUSE_MODEL "TRV1"
+// Helper macros for double-stringification
+#ifndef BUILD_FREEHOUSE_MODEL
+#error "BUILD_FREEHOUSE_MODEL is not defined! Check your build system/command line."
 #endif
+
+#define STRINGIZE_HELPER(x) #x
+#define STRINGIZE(x) STRINGIZE_HELPER(x)
+#define FREEHOUSE_MODEL STRINGIZE(BUILD_FREEHOUSE_MODEL)
 
 #ifndef TRV_H
 #define TRV_H
@@ -18,11 +19,6 @@
 #define delay(n)  vTaskDelay(pdMS_TO_TICKS(n))
 #define millis()  esp_log_timestamp() // (unsigned long)(esp_timer_get_time() / 1000ULL)
 
-#endif // TRV_H
-
-#undef LED_BUILTIN
-#define LED_BUILTIN 15
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -32,4 +28,17 @@ extern char versionDetail[];
 
 #ifdef __cplusplus
 }
+
+#include <string>
+extern std::string debugNetworkInfo();
+enum DebugFlags {
+  DEBUG_LOG_INFO = 0x01,
+  DEBUG_MOTOR_CONTROL = 0x02,
+  DEBUG_DELAY_LOGGING = 0x04,
+  DEBUG_ALL = 0x7FFFFFFF
+};
+extern uint32_t debugFlag(DebugFlags mask);
 #endif
+
+#endif // TRV_H
+

@@ -1,27 +1,31 @@
+#include "pins.h"
 #include "../trv.h"
 #include "../common/gpio/gpio.hpp"
 #include "BatteryMonitor.h"
 
-BatteryMonitor::BatteryMonitor(uint8_t adc, uint8_t chargeIoPin) : adc(adc), pin(chargeIoPin) {
-  GPIO::pinMode(pin, INPUT);
+#define DISCHARGE_FLOOR 3200
+
+BatteryMonitor::BatteryMonitor() {
+  GPIO::pinMode(CHARGING, INPUT);
   getRawValue();
 };
 
 bool BatteryMonitor::is_charging() {
-  return GPIO::digitalRead(pin) != 0;
+  return GPIO::digitalRead(CHARGING) != 0;
 }
 
 int BatteryMonitor::getRawValue() {
-  return GPIO::analogReadMilliVolts(adc) * 2;
+  return GPIO::analogReadMilliVolts(BATTERY) * 2;
 }
 
-#define NUM_SAMPLES 10
-int BatteryMonitor::getValue() {
+int BatteryMonitor::getValue(int samples) {
   auto a = 0;
-  for (int i=0; i<NUM_SAMPLES; i++)
+  for (int i=0; i<samples; i++) {
+    delay(10);
     a += getRawValue();
+  }
 
-  return a / NUM_SAMPLES;
+  return a / samples;
 }
 
 uint8_t BatteryMonitor::getPercent(int raw) {
@@ -34,10 +38,10 @@ uint8_t BatteryMonitor::getPercent(int raw) {
   }
 
   if (is_charging()) {
-    raw -= 150; // 0.15v is a typical charge bias voltage for CC charge circuit
+    raw -= 150; // 0.15v is a typical charge bias voltage for constant current charge circuit
   }
 
-  auto percent = (raw - 3100) / 8; // 3.1-3.9v
+  auto percent = 100 * (raw - DISCHARGE_FLOOR) / (3900 - DISCHARGE_FLOOR);
   if (percent < 0)
     percent = 0;
   else if (percent > 100)

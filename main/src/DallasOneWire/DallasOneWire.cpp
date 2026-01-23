@@ -1,10 +1,9 @@
+#include "pins.h"
 #include "DallasOneWire.h"
 
 #include <math.h>
 
 #include "../../trv.h"
-#include "driver/gpio.h"
-#include "hal/gpio_types.h"
 
 extern "C" {
 #include "ds18b20.h"
@@ -24,8 +23,8 @@ static void retryReset(OW *ow) {
     }
   }
 
-DallasOneWire::DallasOneWire(const uint8_t pin, float& temp) : pin(pin), temp(temp) {
-  if (ow_init(&ow, pin) != ESP_OK) {
+DallasOneWire::DallasOneWire(float& temp, uint8_t resolution) : temp(temp), resolution(resolution) {
+  if (ow_init(&ow, DTEMP) != ESP_OK) {
     ESP_LOGW(TAG, "DallasOneWire: FAILED TO INIT DS18B20");
     return;
   }
@@ -60,7 +59,7 @@ void DallasOneWire::setResolution(uint8_t res /* 0-3 */) {
   ow_send(&ow, OW_SKIP_ROM);
   ow_send(&ow, DS18B20_COPY_SCRATCHPAD);
   do {
-    delay(10);
+    delay(2);
   } while (ow_read(&ow) == 0);
   ESP_LOGI(TAG, "DallasOneWire: Set resolution complete");
   if (ow_reset(&ow) != ESP_OK) goto fail;
@@ -75,28 +74,44 @@ fail:
 
 void DallasOneWire::task() {
   uint16_t data;
+  uint8_t targetConfig = 0x1F | (resolution << 5);
+
+  // Apply resolution on boot (Volatile only)
+  if (ow_reset(&ow) == ESP_OK) {
+    ow_send(&ow, OW_SKIP_ROM);
+    ow_send(&ow, DS18B20_WRITE_SCRATCHPAD);
+    ow_send(&ow, 0x70); // TH (Don't care)
+    ow_send(&ow, 0x90); // TL (Don't care)
+    ow_send(&ow, targetConfig);
+  }
+
+  uint32_t t;
   if (ow_reset(&ow) != ESP_OK) goto fail;
 
   ow_send(&ow, OW_SKIP_ROM);
   ow_send(&ow, DS18B20_CONVERT_T);
+  t = millis();
   do {
-    delay(10);
+    delay(2);
   } while (ow_read(&ow) == 0);
-
+  t = millis() - t;
   if (ow_reset(&ow) != ESP_OK) goto fail;
   ow_send(&ow, OW_SKIP_ROM);
   ow_send(&ow, DS18B20_READ_SCRATCHPAD);
-  data = (ow_read(&ow) | (ow_read(&ow) << 8));
+
+  // Read first 5 bytes to get temp and verify config
+  uint8_t scratchpad[5];
+  for(int i=0; i<5; i++) scratchpad[i] = ow_read(&ow);
+
+  data = scratchpad[0] | (scratchpad[1] << 8);
   if (data == 0xFFFF) {
     ESP_LOGE(TAG, "DallasOneWire: READ FAILED");
     retryReset(&ow);
     goto fail;
   } else {
     temp = (signed)(data) / 16.0;
-    ESP_LOGI(TAG, "Temp is %f", temp);
+    ESP_LOGI(TAG, "Temp is %f, r=0x%02x [0x%02x 0x%02x 0x%02x], t=%lu", temp, targetConfig, scratchpad[2], scratchpad[3], scratchpad[4], t);
   }
-  ESP_LOGI(TAG, "DS18B20 scratchpad %02x %02x %02x", ow_read(&ow), ow_read(&ow), ow_read(&ow));
-  if (ow_reset(&ow) != ESP_OK) goto fail;
   return;
 
 fail:

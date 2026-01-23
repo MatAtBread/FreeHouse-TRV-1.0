@@ -1,3 +1,4 @@
+#include "pins.h"
 #include "trv.h"
 #include "trv-state.h"
 
@@ -44,7 +45,6 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
         ESP_LOGI(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value);
         break;
     case HTTP_EVENT_ON_DATA:
-        // ESP_LOGI(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
         if (!esp_http_client_is_chunked_response(evt->client)) {
             // If user_data buffer is configured, copy the response into the buffer
             if (content_len == -1) {
@@ -90,7 +90,6 @@ class SoftWatchDog: public WithTask {
   }
   ~SoftWatchDog() {
     cancel = true;
-    wait();
   }
   void task() {
     while (seconds-- > 0 && !cancel) {

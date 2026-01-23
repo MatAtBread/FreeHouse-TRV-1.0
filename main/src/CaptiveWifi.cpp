@@ -1,3 +1,4 @@
+#include "pins.h"
 #include "CaptiveWifi.h"
 
 #include "../common/gpio/gpio.hpp"
@@ -118,9 +119,9 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t *req) {
   } else if (startsWith(url, "/set-passphrase/")) {
     char passphrase[64];
     unencode(passphrase, req->uri + 16, sizeof(passphrase));
-    auto passKey = trv->getState(false).config.passKey;
-      if (strlen(passphrase) && get_key_for_passphrase(passphrase,(uint8_t *)passKey) == 0) {
-      trv->saveState();
+    uint8_t passKey[32]; // ENCRYPTION_KEY is 32 bytes
+    if (strlen(passphrase) && get_key_for_passphrase(passphrase, passKey) == 0) {
+      trv->setPassKey(passKey);
     }
   // } else if (startsWith(url, "/net-zigbee")) {
   //   trv->setNetMode(NET_MODE_ZIGBEE);
@@ -188,7 +189,7 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t *req) {
       );
     } else*/ {
       static const char checked[] = "checked";
-      const auto state = trv->getState(false);
+      const auto state = trv->getState();
 
       html << "<!DOCTYPE html>\n"
         "<html>\n"
@@ -255,7 +256,7 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t *req) {
         "<input name='system_mode' onclick='processMessage(this,undefined,\"" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF] << "\")' type='radio' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF ? checked : "") << "/>" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF] << "\n"
         "<input name='system_mode' onclick='processMessage(this,undefined,\"" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP] << "\")' type='radio' " << (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP ? checked : "") << "/>" << systemModes[ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP] << "\n"
         "<table>\n"
-          "<tr><td>valve</td><td>" << (int)state.sensors.position << "</td></tr>\n"
+          "<tr><td>valve</td><td>" << (int)state.sensors.position << " (" << MotorController::lastStatus << ")</td></tr>\n"
           "<tr><td>syetem mode</td><td>" << systemModes[state.config.system_mode] << '(' << state.config.system_mode << ")</td></tr>\n"
           "<tr><td>local_temperature</td><td>" << state.sensors.local_temperature << " °C</td></tr>\n"
           "<tr><td>sensor_temperature</td><td>" << state.sensors.sensor_temperature << " °C</td></tr>\n"
@@ -279,11 +280,17 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t *req) {
           "<tr><td>Sleep time</td>"
             "<td><input style='width:6em;' type='number' value='" << (state.config.sleep_time) << "' name='sleep_time' onchange='processMessage(this)'>s</td>"
           "</tr>\n"
-          "<tr><td>Shunt</td>"
-            "<td><input style='width:6em;' type='number' value='" << (state.config.motor.shunt_milliohms) << "' name='shunt_milliohms' onchange='processMessage(this)'>\xE2\x84\xA6</td>"
+          "<tr><td>Back-off burst</td>"
+            "<td><input style='width:6em;' type='number' value='" << (state.config.motor.backoff_ms) << "' name='backoff_ms' onchange='processMessage(this)'>ms</td>"
+          "</tr>\n"
+          "<tr><td>Stall time</td>"
+            "<td><input style='width:6em;' type='number' value='" << (state.config.motor.stall_ms) << "' name='stall_ms' onchange='processMessage(this)'>ms</td>"
           "</tr>\n"
           "<tr><td>Motor reversed</td>"
               "<td><input type=\"checkbox\" " << (state.config.motor.reversed ? "checked":"") << " name='motor_reversed' onchange='processMessage(this,undefined,this.checked)'></td>"
+          "</tr>\n"
+          "<tr><td>Debug flags</td>"
+            "<td><input style='width:6em;' type='number' value='" << (state.config.debug_flags) << "' name='debug_flags' onchange='processMessage(this)'></td>"
           "</tr>\n"
           "</table>\n"
 
@@ -310,6 +317,7 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t *req) {
         "<input type='file' id='firmware'>"
         "<button onclick='ota_upload(this)'>Update</button>"
         "<div>Current: " << versionDetail << "</div>"
+        "<div>" << debugNetworkInfo() << "</div>"
         "</body></html>";
     }
     httpd_resp_send(req, html.str().c_str(), HTTPD_RESP_USE_STRLEN);

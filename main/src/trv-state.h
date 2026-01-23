@@ -3,6 +3,7 @@
 
 #include <string>
 
+#include "WithTask.hpp"
 #include "trv.h"
 
 #include "BatteryMonitor.h"
@@ -10,6 +11,7 @@
 #include "MotorController.h"
 #include "fs.h"
 #include "../common/encryption/encryption.h"
+#include "TouchButton.hpp"
 
 
 typedef enum {
@@ -35,6 +37,20 @@ typedef enum {
   NET_MODE_ZIGBEE
 } net_mode_t;
 
+// Write (read is possible, but never modified by the system)
+typedef struct trv_config_s {
+  float current_heating_setpoint;
+  float local_temperature_calibration;
+  esp_zb_zcl_thermostat_system_mode_t system_mode; // ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF/AUTO/HEAT/SLEEP
+  net_mode_t netMode; // NET_MODE_ESP_NOW expects mqttConfig to contain WIFI settings, NET_MODE_MQTT expects WIFI & NET_MODE_MQTT settings, NET_MODE_ZIGBEE expects no config
+  trv_mqtt_t mqttConfig;
+  ENCRYPTION_KEY passKey;
+  int sleep_time; // in seconds, 1 to 120
+  uint8_t resolution; // 0=9-bit, 1=10-bit, 2=11-bit, 3=12-bit
+  uint32_t debug_flags;
+  motor_params_t motor;
+} trv_config_t;
+
 typedef struct trv_state_s
 {
   uint32_t version;
@@ -47,27 +63,18 @@ typedef struct trv_state_s
     uint8_t is_charging;
     uint8_t position;
   } sensors;
-  struct {
-    // Write (read is possible, but never modified by the system)
-    float current_heating_setpoint;
-    float local_temperature_calibration;
-    esp_zb_zcl_thermostat_system_mode_t system_mode; // ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF/AUTO/HEAT/SLEEP
-    net_mode_t netMode; // NET_MODE_ESP_NOW expects mqttConfig to contain WIFI settings, NET_MODE_MQTT expects WIFI & NET_MODE_MQTT settings, NET_MODE_ZIGBEE expects no config
-    trv_mqtt_t mqttConfig;
-    ENCRYPTION_KEY passKey;
-    int sleep_time; // in seconds, 1 to 120
-    uint8_t resolution; // 0=9-bit, 1=10-bit, 2=11-bit, 3=12-bit
-    motor_params_t motor;
-  } config;
+  trv_config_t config;
 } trv_state_t;
 
-class Trv
+class Trv: public WithTask
 {
 protected:
-  DallasOneWire *tempSensor;
-  MotorController *motor;
-  BatteryMonitor *battery;
-  TrvFS *fs;
+  DallasOneWire *tempSensor = NULL;
+  MotorController *motor = NULL;
+  BatteryMonitor *battery = NULL;
+  TrvFS *fs = NULL;
+  bool configDirty;
+  bool mustCalibrate;
 
   std::string otaUrl;
   std::string otaSsid;
@@ -75,29 +82,35 @@ protected:
   void requestUpdate(const char *otaUrl, const char *otaSsid, const char *otaPwd);
   void doUnpair();
   void doUpdate();
+  void checkAutoState();
+  void saveState();
+  void task();
+  void setDebugFlags(uint32_t flags);
 
 public:
   Trv();
   virtual ~Trv();
-  void saveState();
-  void resetValve();
-  const trv_state_t &getState(bool fast);
+  const trv_state_t &getState();
+  const trv_config_t &getConfig(); // Doesn't wait, since config isn't asynchronously
   void setHeatingSetpoint(float temp);
   void setSystemMode(esp_zb_zcl_thermostat_system_mode_t mode);
   void setTempCalibration(float temp);
   void setTempResolution(uint8_t res);
-  void checkAutoState();
   bool flatBattery();
   bool is_charging();
   void setNetMode(net_mode_t mode, trv_mqtt_t *mqtt = NULL);
+  void setPassKey(const uint8_t *key);
   void setSleepTime(int seconds);
-  void setMotorParameters(int shunt_milliohms, int reversed = -1);
+  void setMotorParameters(const motor_params_t &params);
   void calibrate();
+  void testMode(TouchButton &touchButton);
   void processNetMessage(const char *json);
+  bool requiresNetworkControl();
 
   static const char* deviceName();
+  static const uint8_t* getPassKey();
   static uint32_t stateVersion();
-  static std::string asJson(const trv_state_t& state, signed int rssi = 0);
+  std::string asJson(const trv_state_t& state, signed int rssi = 0);
   static const char* writeable[];
 };
 

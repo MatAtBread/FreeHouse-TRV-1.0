@@ -7,7 +7,7 @@
 
 #include "esp_wifi.h"
 
-esp_err_t dev_wifi_init(const wifi_init_config_t *config);
+esp_err_t dev_wifi_init(wifi_init_config_t *config);
 esp_err_t dev_wifi_deinit(void);
 
 // #ifdef __cplusplus
