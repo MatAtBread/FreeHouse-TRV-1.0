@@ -74,7 +74,7 @@ uint32_t woken() {
     } else {
       messgageChecks += 1;
     }
-    dreamSecs = config.sleep_time;
+    dreamSecs = trv.getConfig().sleep_time;
   }
 
   while (WithTask::waitForAllTasks(1234) == TIMEOUT) {
