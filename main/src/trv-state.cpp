@@ -43,9 +43,9 @@ const trv_state_t defaultState = {
     .resolution = 1,
     .debug_flags = 0,
     .motor = {
-      .reversed = false, // Added in STATE_VERSION 7
-      .backoff_ms = 100, // Added in STATE_VERSION 8
-      .stall_ms = 200  // Added in STATE_VERSION 8
+      .reversed = true,
+      .backoff_ms = 259,
+      .stall_ms = 1
     }
   }
 };
