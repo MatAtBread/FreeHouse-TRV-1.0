@@ -6,12 +6,7 @@
 
 #define BAR_SCALE 1000
 
-#if BUILD_FREEHOUSE_MODEL == TRV1
-#define maxMotorTime 24000
-#else
-#define maxMotorTime 12000
-#endif
-
+#define maxMotorTime 15000
 #define minMotorTime (maxMotorTime / 25)
 #define peakLoPercent 92
 #define peakHiPercent 102

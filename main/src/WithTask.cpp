@@ -21,6 +21,19 @@ WithTask::WithTask() {
   spinlock_release(&spinlock);
 }
 
+WithTaskState WithTask::wait(TickType_t delay) {
+  if (running) {
+    if (xEventGroupWaitBits(running, WITHTASK_FINISHED, pdFALSE, pdTRUE, delay) & WITHTASK_FINISHED) {
+      running = NULL;
+      return FINISHED;
+    } else {
+      return TIMEOUT;
+    }
+  } else {
+    return NOT_RUNNING;
+  }
+}
+
 WithTask::~WithTask() { wait(); }
 
 WithTaskState WithTask::waitForAllTasks(TickType_t delay) {

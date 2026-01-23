@@ -189,7 +189,7 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t *req) {
       );
     } else*/ {
       static const char checked[] = "checked";
-      const auto state = trv->getState(false);
+      const auto state = trv->getState();
 
       html << "<!DOCTYPE html>\n"
         "<html>\n"

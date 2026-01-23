@@ -77,8 +77,14 @@ uint32_t woken() {
     }
     dreamSecs = config.sleep_time;
   }
-  WithTask::waitForAllTasks();
+
+  while (WithTask::waitForAllTasks(1234) == TIMEOUT) {
+    if (net.wait(1) != TIMEOUT) {
+      net.sendStateToHub(&trv);
+    }
+  }
   net.sendStateToHub(&trv);
+
   if (trv.requiresNetworkControl()) {
     // We have to do this incase there's a pending OTA request executed by the TRV desctructor
     // The reason we don't always do this is to save power/time when not needed

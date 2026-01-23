@@ -9,10 +9,11 @@
 
 #define WITHTASK_FINISHED (1 << 0)
 
+// Truthy if not running (not started or finished), falsy if still running after delay running
 enum WithTaskState {
-  NOT_RUNNING = 1, // Either not yet started, or destroyed
-  TIMEOUT,         // The wait timed out
-  FINISHED         // The task finished
+  TIMEOUT = 0,  // The wait timed out
+  NOT_RUNNING,  // Either not yet started, or destroyed
+  FINISHED      // The task just finished (subsequent calls will be NOT_RUNNING)
 };
 
 class WithTask {
@@ -30,18 +31,8 @@ public:
 
   WithTask();
   virtual ~WithTask();
-
-  WithTaskState wait(TickType_t delay = portMAX_DELAY) {
-    return running ? xEventGroupWaitBits(running, WITHTASK_FINISHED, pdFALSE,
-                                         pdTRUE, delay) &
-                             WITHTASK_FINISHED
-                         ? ((running = NULL), FINISHED)
-                         : TIMEOUT
-                   : NOT_RUNNING;
-  }
-
-  EventGroupHandle_t startTask(const char *name, int priority = 2,
-                               int stackSize = 8192);
+  WithTaskState wait(TickType_t delay = portMAX_DELAY);
+  EventGroupHandle_t startTask(const char *name, int priority = 2, int stackSize = 8192);
 
   // Pure virtual function to be implemented by derived classes
   virtual void task() = 0;

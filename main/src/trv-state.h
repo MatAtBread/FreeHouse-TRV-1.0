@@ -85,13 +85,12 @@ protected:
   void checkAutoState();
   void saveState();
   void task();
-  const trv_state_t &getInternalState(bool fast);
   void setDebugFlags(uint32_t flags);
 
 public:
   Trv();
   virtual ~Trv();
-  const trv_state_t &getState(bool fast);
+  const trv_state_t &getState();
   const trv_config_t &getConfig(); // Doesn't wait, since config isn't asynchronously
   void setHeatingSetpoint(float temp);
   void setSystemMode(esp_zb_zcl_thermostat_system_mode_t mode);

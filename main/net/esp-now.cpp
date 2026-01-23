@@ -64,8 +64,6 @@ void EspNet::setTrv(Trv *t) {
 
 void EspNet::sendStateToHub(Trv *t) {
   setTrv(t);
-  const trv_state_t &state = trv->getState(false); // causes a wait()
-
   wait(); // Ensure discovery is finished
 
   if (!bufferedMessage.empty()) {
@@ -81,14 +79,18 @@ void EspNet::sendStateToHub(Trv *t) {
   add_peer(hub, wifiChannel);
 
   // TODO: Check if the state has changed since the last update
+  const trv_state_t &state = trv->getState(); // causes a wait()
   auto json = trv->asJson(state, avgRssi);
   xEventGroupClearBits(sendEvent, BIT0);
   auto status = esp_now_send(hub, (uint8_t *)json.c_str(), json.length());
   if (status == ESP_OK) {
-    xEventGroupWaitBits(sendEvent, BIT0, pdTRUE, pdTRUE, pdMS_TO_TICKS(100));
+    if (!(xEventGroupWaitBits(sendEvent, BIT0, pdTRUE, pdTRUE, pdMS_TO_TICKS(100)) & BIT0))
+      ESP_LOGW(TAG, "Send state [%u] %s Timed-out", json.length(), json.c_str());
+    else
+      ESP_LOGI(TAG, "Send state [%u] %s", json.length(), json.c_str());
+  } else {
+    ESP_LOGI(TAG, "Send state [%u] %s failed (%u)", json.length(), json.c_str(), status);
   }
-  ESP_LOGI(TAG, "Send state [%u] %s %s(%u)", json.length(), json.c_str(),
-           status == ESP_OK ? "ok" : "failed", status);
 }
 
 void EspNet::data_receive_callback(const esp_now_recv_info_t *esp_now_info,
@@ -446,10 +448,10 @@ void EspNet::task() {
 }
 
 void EspNet::checkMessages(Trv *t) {
-  setTrv(t);
-
   // Wait for the background discovery/ping to complete
   wait();
+
+  setTrv(t);
 
   if (!bufferedMessage.empty()) {
     trv->processNetMessage(bufferedMessage.c_str()); // Will trv->wait() if necessary

@@ -107,10 +107,25 @@ void Trv::task() {
   motor = new MotorController(battery, globalState.sensors.position, globalState.config.motor);
   if (mustCalibrate) {
       motor->calibrate();
-      globalState.sensors.position = motor->getValvePosition();
   }
   if (!mcuTempSensor) mcuTempSensor = new McuTempSensor(); // Lazily get MCU temp
-  getInternalState(true); // Lazily update temp
+
+  globalState.sensors.is_charging = battery->is_charging();
+  globalState.sensors.position = motor->getValvePosition();
+  // We only update battery values when the motor is off. If it's moving, it will drop due to the loading
+  if (motor->getDirection() == 0) {
+    globalState.sensors.battery_raw = battery->getValue();
+    globalState.sensors.battery_percent = battery->getPercent(globalState.sensors.battery_raw);
+  }
+
+  // We choose to keep a running average the temp to minimize the heating effect of operating
+  // We don't read the temperature if we are charging, as the MCU is hot
+  float compensation = 0.0;
+  if (globalState.sensors.is_charging) {
+    compensation = 1.0; // TODO: calibrate this value from the MCU temperature
+  }
+  auto local = tempSensor->readTemp() + globalState.config.local_temperature_calibration + compensation;
+  globalState.sensors.local_temperature = (local + globalState.sensors.local_temperature) / 2;
 }
 
 bool Trv::requiresNetworkControl() {
@@ -220,32 +235,8 @@ const trv_config_t &Trv::getConfig() {
   return globalState.config;
 }
 
-const trv_state_t& Trv::getState(bool fast) {
+const trv_state_t& Trv::getState() {
   wait();
-  return getInternalState(fast);
-}
-
-const trv_state_t& Trv::getInternalState(bool fast) {
-  globalState.sensors.is_charging = battery->is_charging();
-  // We don't read the temperature if we are charging, as the MCU is hot
-  if (!fast) {
-    float compensation = 0.0;
-    if (globalState.sensors.is_charging) {
-      compensation = 1.0; // TODO: calibrate this value from the MCU temperature
-    }
-
-    // We choose to keep a running average the temp to minimize the heating effect of operating
-    auto local = tempSensor->readTemp() + globalState.config.local_temperature_calibration + compensation;
-    globalState.sensors.local_temperature = (local + globalState.sensors.local_temperature) / 2;
-  }
-
-  globalState.sensors.position = motor->getValvePosition();
-  // We only update battery values when the motor is off. If it's moving, it will drop due to the loading
-  if (motor->getDirection() == 0) {
-    globalState.sensors.battery_raw = battery->getValue();
-    globalState.sensors.battery_percent = battery->getPercent(globalState.sensors.battery_raw);
-  }
-
   return globalState;
 }
 
@@ -314,25 +305,28 @@ void Trv::setSystemMode(esp_zb_zcl_thermostat_system_mode_t mode) {
   if (globalState.config.system_mode != mode) {
       configDirty = true;
   }
-  wait();
   if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_OFF) {
     globalState.config.system_mode = mode;
+    wait();
     motor->setValvePosition(0);
   } else if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_HEAT) {
     globalState.config.system_mode = mode;
+    wait();
     motor->setValvePosition(100);
   } else if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO) {
     globalState.config.system_mode = mode;
+    wait();
     checkAutoState();
   } else if (mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_SLEEP) {
     globalState.config.system_mode = mode;
-    motor->setValvePosition(-1); // Just stops the motor where it is
+    wait();
     // In sleep mode we just don't move the plunger at all
+    motor->setValvePosition(-1); // Just stops the motor where it is
   }
 }
 
 void Trv::checkAutoState() {
-  auto state = getState(true); // wait already called
+  auto state = getState(); // wait already called
   if (state.config.system_mode == ESP_ZB_ZCL_THERMOSTAT_SYSTEM_MODE_AUTO) {
     if (state.sensors.local_temperature > state.config.current_heating_setpoint) {
       motor->setValvePosition(0);

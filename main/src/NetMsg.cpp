@@ -99,7 +99,7 @@ void Trv::processNetMessage(const char *json) {
   }
 
   motor_params_t motor = {
-    .reversed = cJSON_IsBool(motor_reversed) ? (bool)cJSON_IsTrue(motor_reversed) : getState(true).config.motor.reversed,
+    .reversed = cJSON_IsBool(motor_reversed) ? (bool)cJSON_IsTrue(motor_reversed) : getConfig().motor.reversed,
     .backoff_ms = cJSON_IsNumber(backoff_ms) ? backoff_ms->valueint : -1,
     .stall_ms = cJSON_IsNumber(stall_ms) ? stall_ms->valueint : -1
   };
