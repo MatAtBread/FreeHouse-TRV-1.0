@@ -22,11 +22,6 @@ typedef struct {
   const esp_partition_t *partition;
 } ota_data_t;
 
-void rtc_ram_preserving_restart() {
-  esp_sleep_enable_timer_wakeup(1000000ULL);
-  esp_deep_sleep_start();
-}
-
 esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 {
   ota_data_t *update = (ota_data_t *)evt->user_data;
@@ -56,8 +51,8 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
             if (percent != lastPercent) {
                 ESP_LOGI(TAG, "Download progress: %d%% (%lld of %lld)", percent, content_read, content_len);
                 lastPercent = percent;
+                GPIO::digitalWrite(LED_BUILTIN, !GPIO::digitalRead(LED_BUILTIN));
             }
-            GPIO::digitalWrite(LED_BUILTIN, !GPIO::digitalRead(LED_BUILTIN));
             ERR_BACKTRACE(esp_ota_write(update->handle, evt->data, evt->data_len));
         }
         break;
@@ -65,8 +60,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
         ESP_LOGI(TAG, "HTTP_EVENT_ON_FINISH");
         ERR_BACKTRACE(esp_ota_end(update->handle));
         ERR_BACKTRACE(esp_ota_set_boot_partition(update->partition));
-        // rtc_ram_preserving_restart();
-        esp_restart();
+        esp_restart(); // Full restart, 'cos the new code might restore the state in a different way
         break;
     case HTTP_EVENT_DISCONNECTED:
         ESP_LOGI(TAG, "HTTP_EVENT_DISCONNECTED");
@@ -99,7 +93,9 @@ class SoftWatchDog: public WithTask {
     if (!cancel && seconds <= 0) {
       ESP_LOGW(TAG, "SoftWatchDog restart!");
       vTaskDelay(100 / portTICK_PERIOD_MS);
-      rtc_ram_preserving_restart();
+      // Soft restart, becuase the download failed and we should just continue like normal.
+      esp_sleep_enable_timer_wakeup(1000ULL);
+      esp_deep_sleep_start();
     }
   }
 };
@@ -120,6 +116,7 @@ void Trv::doUpdate() {
     otaUrlStr += CONFIG_IDF_TARGET;
     otaUrlStr += "/";
     otaUrlStr += "trv-1.bin";
+    saveState();
 
     WiFiStation sta((const uint8_t *)otaSsid.c_str(), (const uint8_t *)otaPwd.c_str(), Trv::deviceName(), 1);
     sta.connect();
@@ -135,7 +132,6 @@ void Trv::doUpdate() {
 
     if (otaUrlStr.starts_with("http://")) {
       // Get OTA partition
-//      SoftWatchDog *woof = new SoftWatchDog(150); // Max 2.5 mins to update
       SoftWatchDog woof(150);
       const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
       esp_ota_handle_t update_handle = 0;
@@ -162,8 +158,7 @@ void Trv::doUpdate() {
       esp_err_t ret = esp_https_ota(&ota_config);
 
       if (ret == ESP_OK) {
-        // rtc_ram_preserving_restart();
-        esp_restart();
+        esp_restart(); // Full restart, 'cos the new code might restore the state in a different way
       }
     }
   }
