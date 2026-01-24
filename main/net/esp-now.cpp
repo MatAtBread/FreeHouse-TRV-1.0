@@ -396,7 +396,7 @@ void EspNet::task() {
       if (this->joinPhraseLen <= sizeof(prevJoin.phrase)) {
         prevJoin.len = this->joinPhraseLen;
         memcpy(prevJoin.phrase, this->joinPhrase, prevJoin.len);
-        strncpy(prevJoin.deviceName, currentName, sizeof(prevJoin.deviceName));
+        strncpy(prevJoin.deviceName, currentName, sizeof(prevJoin.deviceName)-1);
         memcpy(prevJoin.passKey, currentKey, 32);
       }
     } else {
