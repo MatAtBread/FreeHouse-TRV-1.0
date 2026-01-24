@@ -17,7 +17,7 @@ extern "C" {
 const char* TAG = "TRV";
 }
 
-static RTC_DATA_ATTR int messgageChecks = 0;
+static RTC_DATA_ATTR int messageCheckCount = 0;
 static RTC_DATA_ATTR int wakeCount = 0;
 char versionDetail[110] = {0};
 
@@ -65,15 +65,16 @@ uint32_t woken() {
     }
   } else {
     net.checkMessages(&trv);
-    int checkEvery = 60 / trv.getConfig().sleep_time;
-    ESP_LOGI(TAG, "checkForMessages %d / %d", messgageChecks, checkEvery);
-    if (messgageChecks >= checkEvery) {
+    // We do this at 0 so it always sets the mode after a hard restart
+    if (messageCheckCount == 0) {
       // Every 60 seconds re-set the system-mode to ensure the TRV acts to correct things like motor time-outs or temperature changes
       trv.setSystemMode(trv.getConfig().system_mode);
-      messgageChecks = 0;
-    } else {
-      messgageChecks += 1;
     }
+
+    int checkEvery = 60 / trv.getConfig().sleep_time;
+    if (++messageCheckCount >= checkEvery)
+      messageCheckCount = 0;
+
     dreamSecs = trv.getConfig().sleep_time;
   }
 
