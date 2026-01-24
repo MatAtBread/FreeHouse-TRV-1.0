@@ -74,25 +74,23 @@ static void linear_regression(const float *x, const float *y, int n, float
   */
 
 McuTempSensor::McuTempSensor() {
-  StartTask(McuTempSensor, 1);
+  StartTask(McuTempSensor);
 }
 
 McuTempSensor::~McuTempSensor() {}
 float McuTempSensor::read() {
   if (temp < 0) {
-    mcu_temp_init();
-    temp = mcu_temp_read();
-    ESP_LOGI(TAG, "MCU temp: %f", temp);
-    mcu_temp_deinit();
     wait();
   }
   return temp;
 }
 
 void McuTempSensor::task() {
-  delay(10);
+  delay(10); // Just because other tasks are more important
   mcu_temp_init();
+  delay(10); // Just because other tasks are more important
   temp = mcu_temp_read();
+  delay(10); // Just because other tasks are more important
   ESP_LOGI(TAG, "MCU temp: %f", temp);
   mcu_temp_deinit();
 }

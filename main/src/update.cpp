@@ -88,6 +88,7 @@ class SoftWatchDog: public WithTask {
   void task() {
     while (seconds-- > 0 && !cancel) {
       ESP_LOGI(TAG, "SoftWatchDog %d %d", seconds, cancel);
+      GPIO::digitalWrite(LED_BUILTIN, !GPIO::digitalRead(LED_BUILTIN));
       vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
     if (!cancel && seconds <= 0) {
