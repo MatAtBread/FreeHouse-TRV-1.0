@@ -185,9 +185,13 @@ void EspNet::data_send_callback(const uint8_t *mac_addr,
   if (sendEvent)
     xEventGroupSetBits(sendEvent, BIT0);
   if (status != ESP_NOW_SEND_SUCCESS) {
-    ESP_LOGW(TAG, "send-now: " MACSTR " %s", MAC2STR(mac_addr),
-             "failed - diconnecting");
-    unpair();
+    if (memcmp(hub, mac_addr, sizeof(hub)) == 0) {
+      ESP_LOGI(TAG, "send-now: " MACSTR " %s (hub )" MACSTR " %s)", MAC2STR(mac_addr), MAC2STR(hub), "failed - disconnecting");
+      unpair();
+    } else {
+      // This can happen if we get a NACK from a hub we tried to contact, or we moved hubs
+      ESP_LOGI(TAG, "send-now: " MACSTR " %s (hub )" MACSTR " %s)", MAC2STR(mac_addr), MAC2STR(hub), "failed - not hub");
+    }
   } else {
     ESP_LOGI(TAG, "send-now: " MACSTR " %s", MAC2STR(mac_addr), "ok");
   }
