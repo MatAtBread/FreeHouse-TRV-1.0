@@ -20,6 +20,7 @@ const char* TAG = "TRV";
 static RTC_DATA_ATTR int messageCheckCount = 0;
 static RTC_DATA_ATTR int wakeCount = 0;
 char versionDetail[110] = {0};
+#define RECALIBRATE_PERIOD_SECS (24 * 3600 * 25) // Recalibrate every 25 days
 
 uint32_t woken() {
   Trv trv; // Loads static state from FS
@@ -31,12 +32,20 @@ uint32_t woken() {
       delay(500); // For attaching debugger
     }
   }
-
   if (trv.flatBattery() && !trv.is_charging()) {
     ESP_LOGW(TAG, "Battery exhausted");
     // Skip tidy up - we're dead
     esp_sleep_enable_ext1_wakeup(1ULL << TOUCH_PIN, ESP_EXT1_WAKEUP_ANY_HIGH);
     return 0x7FFFFFFF;
+  }
+
+  ESP_LOGI(TAG, "Build: %s. Wake: %d reset: %d count: %d",
+    versionDetail, esp_sleep_get_wakeup_cause(), esp_reset_reason(), wakeCount);
+
+  if (wakeCount > RECALIBRATE_PERIOD_SECS / trv.getConfig().sleep_time) {
+    ESP_LOGI(TAG, "Recalibration period reached (%d secs), starting calibration", RECALIBRATE_PERIOD_SECS);
+    trv.calibrate();
+    wakeCount = 0;
   }
 
   EspNet net; // Start Wi-Fi based on Trv state (loaded above)
@@ -118,8 +127,6 @@ extern "C" void app_main() {
   const auto app = esp_app_get_description();
   snprintf((char*)versionDetail, sizeof versionDetail, "%s %s %s",
            app->version, app->date, app->time);
-  ESP_LOGI(TAG, "Build: %s. Wake: %d reset: %d count: %d",
-    versionDetail, esp_sleep_get_wakeup_cause(), esp_reset_reason(), wakeCount);
 
   esp_err_t ret = nvs_flash_init();
   if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
