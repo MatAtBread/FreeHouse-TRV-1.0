@@ -8,13 +8,13 @@
 #include "nvs_flash.h"
 #include "pins.h"
 #include "src/CaptiveWifi.h"
+#include "src/TouchButton.hpp"
 #include "src/WithTask.hpp"
 #include "src/trv-state.h"
 #include "trv.h"
-#include "src/TouchButton.hpp"
 
 extern "C" {
-const char* TAG = "TRV";
+const char *TAG = "TRV";
 }
 
 static RTC_DATA_ATTR int messageCheckCount = 0;
@@ -24,14 +24,6 @@ char versionDetail[110] = {0};
 
 uint32_t woken() {
   Trv trv; // Loads static state from FS
-  if (debugFlag(DEBUG_LOG_INFO))
-    esp_log_level_set(TAG, ESP_LOG_INFO);
-  if (debugFlag(DEBUG_DELAY_LOGGING)) {
-    for (int i=10; i; i--) {
-      ESP_LOGW(TAG, "Delaying for debugger attach: %d", i);
-      delay(500); // For attaching debugger
-    }
-  }
   if (trv.flatBattery() && !trv.is_charging()) {
     ESP_LOGW(TAG, "Battery exhausted");
     // Skip tidy up - we're dead
@@ -39,11 +31,13 @@ uint32_t woken() {
     return 0x7FFFFFFF;
   }
 
-  ESP_LOGI(TAG, "Build: %s. Wake: %d reset: %d count: %d",
-    versionDetail, esp_sleep_get_wakeup_cause(), esp_reset_reason(), wakeCount);
+  ESP_LOGI(TAG, "Build: %s. Wake: %d reset: %d count: %d", versionDetail,
+           esp_sleep_get_wakeup_cause(), esp_reset_reason(), wakeCount);
 
   if (wakeCount > RECALIBRATE_PERIOD_SECS / trv.getConfig().sleep_time) {
-    ESP_LOGI(TAG, "Recalibration period reached (%d secs), starting calibration", RECALIBRATE_PERIOD_SECS);
+    ESP_LOGI(TAG,
+             "Recalibration period reached (%d secs), starting calibration",
+             RECALIBRATE_PERIOD_SECS);
     trv.calibrate();
     wakeCount = 0;
   }
@@ -56,27 +50,28 @@ uint32_t woken() {
     ESP_LOGI(TAG, "Touch button pressed / device name '%s'", trv.deviceName());
     CaptivePortal portal(&trv, trv.deviceName());
     switch (portal.exitStatus) {
-      case exit_status_t::CALIBRATE:
-        trv.calibrate();
-        break;
-      case exit_status_t::TEST_MODE:
-        trv.testMode(touchButton);
-        break;
-      case exit_status_t::POWER_OFF:
-        ESP_LOGI(TAG, "Power off requested");
-        dreamSecs = 0x7FFFFFFF;  // Forever
-        EspNet::unpair();
-        break;
-      case exit_status_t::CLOSED:
-      case exit_status_t::NONE:
-      case exit_status_t::TIME_OUT:
-        break;
+    case exit_status_t::CALIBRATE:
+      trv.calibrate();
+      break;
+    case exit_status_t::TEST_MODE:
+      trv.testMode(touchButton);
+      break;
+    case exit_status_t::POWER_OFF:
+      ESP_LOGI(TAG, "Power off requested");
+      dreamSecs = 0x7FFFFFFF; // Forever
+      EspNet::unpair();
+      break;
+    case exit_status_t::CLOSED:
+    case exit_status_t::NONE:
+    case exit_status_t::TIME_OUT:
+      break;
     }
   } else {
     net.checkMessages(&trv);
     // We do this at 0 so it always sets the mode after a hard restart
     if (messageCheckCount == 0) {
-      // Every 60 seconds re-set the system-mode to ensure the TRV acts to correct things like motor time-outs or temperature changes
+      // Every 60 seconds re-set the system-mode to ensure the TRV acts to
+      // correct things like motor time-outs or temperature changes
       trv.setSystemMode(trv.getConfig().system_mode);
     }
 
@@ -95,22 +90,25 @@ uint32_t woken() {
   net.sendStateToHub(&trv);
 
   if (trv.requiresNetworkControl()) {
-    // We have to do this incase there's a pending OTA request executed by the TRV desctructor
-    // The reason we don't always do this is to save power/time when not needed
+    // We have to do this incase there's a pending OTA request executed by the
+    // TRV desctructor The reason we don't always do this is to save power/time
+    // when not needed
     net.deinit();
   }
 
   uint64_t ext1WakeMask = (1ULL << TOUCH_PIN);
   if (!trv.is_charging()) {
-    // Ideally, we'd wake on CHARGING changed, but in the current h/w this is not
-    // an RTC_GPIO. On Rev3.2, the CHARGING pin is connected to GPIO2, so we can use that
-    // if we're not alreday charghing (if we are, it would wake immediately)
+    // Ideally, we'd wake on CHARGING changed, but in the current h/w this is
+    // not an RTC_GPIO. On Rev3.2, the CHARGING pin is connected to GPIO2, so we
+    // can use that if we're not alreday charghing (if we are, it would wake
+    // immediately)
     ext1WakeMask |= (1ULL << 2);
   }
 
   // Prepare to sleep. Wake on touch or timeout
   // Ideally, we'd wake on CHARGING changed, but in the current h/w this is not
-  // an RTC_GPIO. On Rev3.2, the CHARGIBG pin is connected to GPIO2, so we can use that.
+  // an RTC_GPIO. On Rev3.2, the CHARGIBG pin is connected to GPIO2, so we can
+  // use that.
   esp_sleep_enable_ext1_wakeup(ext1WakeMask, ESP_EXT1_WAKEUP_ANY_HIGH);
 
   return dreamSecs;
@@ -119,13 +117,11 @@ uint32_t woken() {
 extern "C" void app_main() {
   GPIO::pinMode(LED_BUILTIN, OUTPUT);
   GPIO::digitalWrite(LED_BUILTIN, false);
-  esp_log_level_set("*", ESP_LOG_WARN);
-  esp_log_level_set("wifi", ESP_LOG_ERROR);
 
   wakeCount += 1;
 
   const auto app = esp_app_get_description();
-  snprintf((char*)versionDetail, sizeof versionDetail, "%s %s %s",
+  snprintf((char *)versionDetail, sizeof versionDetail, "%s %s %s",
            app->version, app->date, app->time);
 
   esp_err_t ret = nvs_flash_init();
@@ -144,8 +140,10 @@ extern "C" void app_main() {
   GPIO::pinMode(TOUCH_PIN, INPUT);
 
   esp_sleep_enable_timer_wakeup(dreamSecs * 1000000ULL);
-  ESP_LOGW(TAG, FREEHOUSE_MODEL " (build %s) device '%s' dbg=0x%04x. Deep sleep %u secs\n", versionDetail, Trv::deviceName(), debugFlag(DEBUG_ALL), dreamSecs);
+  ESP_LOGW(TAG,
+           FREEHOUSE_MODEL
+           " (build %s) device '%s' dbg=0x%04x. Deep sleep %u secs\n",
+           versionDetail, Trv::deviceName(), debugFlag(DEBUG_ALL), dreamSecs);
 
   esp_deep_sleep_start();
 }
-

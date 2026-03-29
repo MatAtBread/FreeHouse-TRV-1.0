@@ -49,6 +49,14 @@ uint32_t ow_reset (OW *ow) {
         return false;
     }
     bool is_present = _parse_reset_symbols (evt.num_symbols, evt.received_symbols);
+    if (!is_present) {
+        ESP_LOGW (TAG, "%s: no presence. num_symbols=%d", __func__, evt.num_symbols);
+        for (int i = 0; i < evt.num_symbols && i < 4; i++) {
+            ESP_LOGW (TAG, "  sym[%d]: L0=%d D0=%u L1=%d D1=%u", i,
+                evt.received_symbols[i].level0, evt.received_symbols[i].duration0,
+                evt.received_symbols[i].level1, evt.received_symbols[i].duration1);
+        }
+    }
     if (rmt_tx_wait_all_done (ow->tx_channel, OW_RMT_TIMEOUT_MS) != ESP_OK) {
         ESP_LOGE (TAG, "%s: tx timeout", __func__);
     }
