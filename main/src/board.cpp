@@ -1,5 +1,5 @@
 #include "board.h"
-#include "../common/gpio/gpio.hpp"
+#include "gpio.hpp"
 
 #include "nvs.h"
 

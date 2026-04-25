@@ -7,7 +7,7 @@
 #include "esp_wifi.h"
 #include "string.h"
 
-#include "../common/encryption/encryption.h"
+#include "encryption.h"
 #include "../src/board.h"
 #include "helpers.h"
 

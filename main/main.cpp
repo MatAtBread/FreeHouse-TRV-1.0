@@ -1,6 +1,6 @@
 // the setup function runs once when you press reset or power the board
 
-#include "common/gpio/gpio.hpp"
+#include "gpio.hpp"
 #include "esp_app_desc.h"
 #include "esp_netif.h"
 #include "esp_sleep.h"

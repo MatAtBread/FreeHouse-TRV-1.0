@@ -11,7 +11,7 @@
 #include "esp_ota_ops.h"
 #include "esp_http_client.h"
 #endif
-#include "../common/gpio/gpio.hpp"
+#include "gpio.hpp"
 
 static int64_t content_len = -1;
 static int64_t content_read = 0;

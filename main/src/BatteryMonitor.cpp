@@ -1,6 +1,6 @@
 #include "pins.h"
 #include "../trv.h"
-#include "../common/gpio/gpio.hpp"
+#include "gpio.hpp"
 #include "BatteryMonitor.h"
 
 #define DISCHARGE_FLOOR 3200

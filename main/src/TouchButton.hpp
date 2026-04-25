@@ -3,7 +3,7 @@
 
 #include "trv.h"
 #include "WithTask.hpp"
-#include "common/gpio/gpio.hpp"
+#include "gpio.hpp"
 #include "esp_log.h"
 #include "pins.h"
 

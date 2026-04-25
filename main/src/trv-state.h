@@ -10,7 +10,7 @@
 #include "DallasOneWire/DallasOneWire.h"
 #include "MotorController.h"
 #include "fs.h"
-#include "../common/encryption/encryption.h"
+#include "encryption.h"
 #include "TouchButton.hpp"
 
 

@@ -5,7 +5,7 @@
 #include "string.h"
 #include "trv-state.h"
 #include "trv.h"
-#include "../common/gpio/gpio.hpp"
+#include "gpio.hpp"
 #include "cJSON.h"
 
 extern const char *systemModes[];

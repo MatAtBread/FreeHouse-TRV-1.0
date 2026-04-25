@@ -1,7 +1,7 @@
 #ifndef CAPTIVE_WIFI_H
 #define CAPTIVE_WIFI_H
 
-#include "../common/captiveportal/wifi-captiveportal.h"
+#include "wifi-captiveportal.h"
 #include "trv-state.h"
 
 typedef enum {

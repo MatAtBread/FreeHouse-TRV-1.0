@@ -1,6 +1,6 @@
 #include "MotorController.h"
 
-#include "../common/gpio/gpio.hpp"
+#include "gpio.hpp"
 #include "../trv.h"
 #include "pins.h"
 

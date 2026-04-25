@@ -1,7 +1,7 @@
 #include "pins.h"
 #include "CaptiveWifi.h"
 
-#include "../common/gpio/gpio.hpp"
+#include "gpio.hpp"
 
 #include <sstream>
 #include <trv.h>
