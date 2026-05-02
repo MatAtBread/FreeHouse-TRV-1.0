@@ -161,7 +161,8 @@ esp_err_t CaptivePortal::getHandler(httpd_req_t *req) {
 
   if (strcmp(url, root)) {
     httpd_resp_set_status(req, "302 Found");
-    httpd_resp_set_hdr(req, "Location", "/");
+    // Absolute URL — Android/Samsung reject private-IP portals reached via relative redirects
+    httpd_resp_set_hdr(req, "Location", get_portal_redirect_url());
     const char *resp_str = "<html><body>Redirecting</body></html>";
     httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
     return ESP_OK;

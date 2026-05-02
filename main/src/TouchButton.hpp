@@ -20,7 +20,7 @@ protected:
     for (int i = 0;; i++) {
       auto n = GPIO::analogRead(TOUCH_PIN);
       ESP_LOGI("TRV", "Touch test %d", n);
-      if (n >= 0 && n < 256) {
+      if (n >= 0 && n < 512) {
         state = NOT_PRESSED;
         return;
       }

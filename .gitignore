@@ -5,3 +5,4 @@ managed_components/
 .cache/
 .devcontainer/
 .DS_Store
+.claude/
