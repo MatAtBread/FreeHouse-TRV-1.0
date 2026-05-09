@@ -329,7 +329,7 @@ void Trv::setPassKey(const uint8_t *key) {
 
 bool Trv::flatBattery() {
   // No need to wait, battery created fast in constructor
-  return battery->getPercent() <= 1;
+  return battery->getPercent(battery->getValue()) <= 1;
 }
 
 bool Trv::is_charging() {

@@ -7,7 +7,7 @@
 
 BatteryMonitor::BatteryMonitor() {
   GPIO::pinMode(CHARGING, INPUT);
-  getRawValue();
+  //getRawValue();
 };
 
 bool BatteryMonitor::is_charging() {
@@ -25,13 +25,12 @@ int BatteryMonitor::getValue(int samples) {
     a += getRawValue();
   }
 
-  return a / samples;
+  int voltage = a / samples;
+  ESP_LOGI(TAG, "Battery raw value: %d mV", voltage);
+  return voltage;
 }
 
 uint8_t BatteryMonitor::getPercent(int raw) {
-  if (raw == NO_VALUE)
-    raw = getRawValue();
-
   if (raw < 0) {
     // Something bad happend - just ignore it for now
     return 50;
