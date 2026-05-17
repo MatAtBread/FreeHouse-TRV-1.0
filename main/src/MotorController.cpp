@@ -32,6 +32,11 @@ MotorController::MotorController(BatteryMonitor *battery, uint8_t &current,
   setDirection(0);
 }
 
+
+MotorController::~MotorController(){
+  GPIO::sleepState(NSLEEP, false);
+}
+
 int MotorController::getDirection() {
   if (GPIO::digitalRead(NSLEEP) == false)
     return 0;

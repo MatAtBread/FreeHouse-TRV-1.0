@@ -22,6 +22,7 @@ class MotorController: public WithTask {
 
  public:
   MotorController(BatteryMonitor* battery, uint8_t& current, motor_params_t &params);
+  virtual ~MotorController();
   void task();
   int getDirection();
   void setValvePosition(int pos /* 0-100, -1 means "current position - stop the motor now" */);
