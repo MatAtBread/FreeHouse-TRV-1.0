@@ -6,6 +6,7 @@
 #include <math.h>
 
 #include "../../trv.h"
+#include "gpio.hpp"
 
 extern "C" {
 #include "ds18b20.h"
@@ -34,6 +35,7 @@ DallasOneWire::~DallasOneWire() {
   wait();
   while (configuring) delay(50);
   ow_deinit(&ow);
+  GPIO::sleepState(DTEMP, true);
 }
 
 float DallasOneWire::readTemp() {
