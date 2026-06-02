@@ -18,7 +18,8 @@ DallasOneWire::DallasOneWire(float& temp, uint8_t resolution) : temp(temp), reso
   // Bit-bang a reset pulse BEFORE RMT init to recover DS18B20 from any
   // stuck protocol state persisting across deep sleep.
   // Uses esp_rom_delay_us() because FreeRTOS delay(1) rounds to 0 at 500Hz tick rate.
-  gpio_set_direction(DTEMP, GPIO_MODE_OUTPUT_OD);
+  GPIO::pinMode(DTEMP, OUTPUT_OD); // Forces pin latch off.
+  //gpio_set_direction(DTEMP, GPIO_MODE_OUTPUT_OD);
   gpio_set_level(DTEMP, 0);           // Pull bus low
   esp_rom_delay_us(960);              // 2x minimum reset pulse (480µs) for reliability
   gpio_set_level(DTEMP, 1);           // Release bus
